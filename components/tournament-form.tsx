@@ -1,99 +1,125 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import TeamForm from "@/components/team-form"
-import { type Team, TournamentFormat } from "@/lib/types"
-import { generateBracket } from "@/lib/bracket-utils"
-import { createTournament } from "@/lib/tournament-store"
-import { Separator } from "@/components/ui/separator"
-import { AlertCircle } from "lucide-react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import TeamForm from "@/components/team-form";
+import { type Team, TournamentFormat } from "@/lib/types";
+import { generateBracket } from "@/lib/bracket-utils";
+import { createTournamentInDB } from "@/lib/tournament-store";
+import { Separator } from "@/components/ui/separator";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface TournamentFormProps {
-  userId: string
+  userId: string;
 }
 
 export default function TournamentForm({ userId }: TournamentFormProps) {
-  const router = useRouter()
-  const [name, setName] = useState("")
-  const [description, setDescription] = useState("")
-  const [format, setFormat] = useState<TournamentFormat>(TournamentFormat.ROUND_ROBIN)
-  const [teams, setTeams] = useState<Team[]>([])
-  const [location, setLocation] = useState("")
-  const [startDate, setStartDate] = useState("")
-  const [division, setDivision] = useState("")
-  const [pointsToWin, setPointsToWin] = useState<number>(11)
-  const [winBy, setWinBy] = useState<number>(2)
-  const [matchType, setMatchType] = useState<"Singles" | "Doubles" | "Mixed Doubles">("Singles")
+  const router = useRouter();
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [format, setFormat] = useState<TournamentFormat>(
+    TournamentFormat.ROUND_ROBIN
+  );
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [location, setLocation] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [division, setDivision] = useState("");
+  const [pointsToWin, setPointsToWin] = useState<number>(11);
+  const [winBy, setWinBy] = useState<number>(2);
+  const [matchType, setMatchType] = useState<
+    "Singles" | "Doubles" | "Mixed Doubles"
+  >("Singles");
 
   // Game configuration for different stages
-  const [earlyRoundGames, setEarlyRoundGames] = useState<number>(1)
-  const [quarterFinalGames, setQuarterFinalGames] = useState<number>(3)
-  const [semiFinalGames, setSemiFinalGames] = useState<number>(3)
-  const [finalGames, setFinalGames] = useState<number>(3)
+  const [earlyRoundGames, setEarlyRoundGames] = useState<number>(1);
+  const [quarterFinalGames, setQuarterFinalGames] = useState<number>(3);
+  const [semiFinalGames, setSemiFinalGames] = useState<number>(3);
+  const [finalGames, setFinalGames] = useState<number>(3);
 
   // Pool play configuration
-  const [enablePoolPlay, setEnablePoolPlay] = useState<boolean>(true)
+  const [enablePoolPlay, setEnablePoolPlay] = useState<boolean>(true);
 
   const handleAddTeam = (team: Team) => {
-    setTeams((prev) => [...prev, { ...team, id: Date.now().toString() }])
-  }
+    setTeams((prev) => [...prev, { ...team, id: Date.now().toString() }]);
+  };
 
   const handleRemoveTeam = (id: string) => {
-    setTeams((prev) => prev.filter((team) => team.id !== id))
-  }
+    setTeams((prev) => prev.filter((team) => team.id !== id));
+  };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-    if (!name) return
+    if (!name) return;
 
     // Generate a new bracket with the current teams
-    const tournament = generateBracket(teams, name, format, description, userId, {
-      enablePoolPlay: format === TournamentFormat.POOL_PLAY, // Only enable pool play if explicitly selected
-      earlyRoundGames,
-      quarterFinalGames,
-      semiFinalGames,
-      finalGames,
-    })
+    const tournament = generateBracket(
+      teams,
+      name,
+      format,
+      description,
+      userId,
+      {
+        enablePoolPlay: format === TournamentFormat.POOL_PLAY, // Only enable pool play if explicitly selected
+        earlyRoundGames,
+        quarterFinalGames,
+        semiFinalGames,
+        finalGames,
+      }
+    );
 
     // Add pickleball-specific settings
-    tournament.location = location
-    tournament.startDate = startDate
-    tournament.division = division
-    tournament.pointsToWin = pointsToWin
-    tournament.winBy = winBy
-    tournament.matchType = matchType
+    tournament.location = location;
+    tournament.startDate = startDate;
+    tournament.division = division;
+    tournament.pointsToWin = pointsToWin;
+    tournament.winBy = winBy;
+    tournament.matchType = matchType;
 
-    createTournament(tournament)
+    await createTournamentInDB(tournament);
 
-    router.push("/tournaments")
-  }
+    router.push("/tournaments");
+  };
 
   const handleAddDummyTeams = () => {
-    setTeams(generateDummyPickleballTeams(16, matchType))
-  }
+    setTeams(generateDummyPickleballTeams(16, matchType));
+  };
 
   // Determine if pool play is applicable
   const isPoolPlayApplicable =
     teams.length >= 8 &&
-    (format === TournamentFormat.SINGLE_ELIMINATION || format === TournamentFormat.DOUBLE_ELIMINATION)
+    (format === TournamentFormat.SINGLE_ELIMINATION ||
+      format === TournamentFormat.DOUBLE_ELIMINATION);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle>Create New Pickleball Tournament</CardTitle>
-        <CardDescription>Set up your tournament details and add teams/players</CardDescription>
+        <CardDescription>
+          Set up your tournament details and add teams/players
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -133,7 +159,12 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="startDate">Start Date</Label>
-                <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
               </div>
             </div>
 
@@ -155,25 +186,37 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
                 className="flex flex-col space-y-1"
               >
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value={TournamentFormat.ROUND_ROBIN} id="robin" />
+                  <RadioGroupItem
+                    value={TournamentFormat.ROUND_ROBIN}
+                    id="robin"
+                  />
                   <Label htmlFor="robin" className="font-normal">
                     Round Robin (recommended for small groups)
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value={TournamentFormat.DOUBLE_ELIMINATION} id="double" />
+                  <RadioGroupItem
+                    value={TournamentFormat.DOUBLE_ELIMINATION}
+                    id="double"
+                  />
                   <Label htmlFor="double" className="font-normal">
                     Double Elimination
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value={TournamentFormat.SINGLE_ELIMINATION} id="single" />
+                  <RadioGroupItem
+                    value={TournamentFormat.SINGLE_ELIMINATION}
+                    id="single"
+                  />
                   <Label htmlFor="single" className="font-normal">
                     Single Elimination
                   </Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <RadioGroupItem value={TournamentFormat.POOL_PLAY} id="pool" />
+                  <RadioGroupItem
+                    value={TournamentFormat.POOL_PLAY}
+                    id="pool"
+                  />
                   <Label htmlFor="pool" className="font-normal">
                     Pool Play + Playoffs
                   </Label>
@@ -196,8 +239,9 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
                   </Label>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  With 8+ teams, enable pool play to group teams into pools for round-robin play before knockout stage.
-                  Teams will be distributed based on seeding to ensure balanced pools.
+                  With 8+ teams, enable pool play to group teams into pools for
+                  round-robin play before knockout stage. Teams will be
+                  distributed based on seeding to ensure balanced pools.
                 </p>
               </div>
             )}
@@ -210,14 +254,19 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="matchType">Match Type</Label>
-                  <Select value={matchType} onValueChange={(value) => setMatchType(value as any)}>
+                  <Select
+                    value={matchType}
+                    onValueChange={(value) => setMatchType(value as any)}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Select match type" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Singles">Singles</SelectItem>
                       <SelectItem value="Doubles">Doubles</SelectItem>
-                      <SelectItem value="Mixed Doubles">Mixed Doubles</SelectItem>
+                      <SelectItem value="Mixed Doubles">
+                        Mixed Doubles
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -226,7 +275,9 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
                   <Label htmlFor="pointsToWin">Points to Win</Label>
                   <Select
                     value={pointsToWin.toString()}
-                    onValueChange={(value) => setPointsToWin(Number.parseInt(value))}
+                    onValueChange={(value) =>
+                      setPointsToWin(Number.parseInt(value))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select points" />
@@ -245,7 +296,9 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
                   <Label htmlFor="earlyRoundGames">Early Rounds</Label>
                   <Select
                     value={earlyRoundGames.toString()}
-                    onValueChange={(value) => setEarlyRoundGames(Number.parseInt(value))}
+                    onValueChange={(value) =>
+                      setEarlyRoundGames(Number.parseInt(value))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Games" />
@@ -262,7 +315,9 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
                   <Label htmlFor="quarterFinalGames">Quarter Finals</Label>
                   <Select
                     value={quarterFinalGames.toString()}
-                    onValueChange={(value) => setQuarterFinalGames(Number.parseInt(value))}
+                    onValueChange={(value) =>
+                      setQuarterFinalGames(Number.parseInt(value))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Games" />
@@ -279,7 +334,9 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
                   <Label htmlFor="semiFinalGames">Semi Finals</Label>
                   <Select
                     value={semiFinalGames.toString()}
-                    onValueChange={(value) => setSemiFinalGames(Number.parseInt(value))}
+                    onValueChange={(value) =>
+                      setSemiFinalGames(Number.parseInt(value))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Games" />
@@ -296,7 +353,9 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
                   <Label htmlFor="finalGames">Finals</Label>
                   <Select
                     value={finalGames.toString()}
-                    onValueChange={(value) => setFinalGames(Number.parseInt(value))}
+                    onValueChange={(value) =>
+                      setFinalGames(Number.parseInt(value))
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Games" />
@@ -313,22 +372,33 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-medium mb-4">Add {matchType === "Singles" ? "Players" : "Teams"} (Optional)</h3>
+            <h3 className="text-lg font-medium mb-4">
+              Add {matchType === "Singles" ? "Players" : "Teams"} (Optional)
+            </h3>
 
             <Alert className="mb-4">
               <AlertCircle className="h-4 w-4" />
               <AlertTitle>Note</AlertTitle>
               <AlertDescription>
-                Adding teams is optional. You can create the tournament now and teams can register later.
+                Adding teams is optional. You can create the tournament now and
+                teams can register later.
               </AlertDescription>
             </Alert>
 
             <div className="grid md:grid-cols-2 gap-6">
               <div>
-                <TeamForm onAddTeam={handleAddTeam} renderAsForm={false} matchType={matchType} />
+                <TeamForm
+                  onAddTeam={handleAddTeam}
+                  renderAsForm={false}
+                  matchType={matchType}
+                />
 
                 <div className="mt-4">
-                  <Button type="button" variant="outline" onClick={handleAddDummyTeams}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleAddDummyTeams}
+                  >
                     Add Dummy {matchType === "Singles" ? "Players" : "Teams"}
                   </Button>
                 </div>
@@ -336,22 +406,38 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
 
               <div>
                 <h4 className="font-medium mb-2">
-                  {matchType === "Singles" ? "Player" : "Team"} List ({teams.length})
+                  {matchType === "Singles" ? "Player" : "Team"} List (
+                  {teams.length})
                 </h4>
                 {teams.length === 0 ? (
-                  <p className="text-muted-foreground">No {matchType === "Singles" ? "players" : "teams"} added yet</p>
+                  <p className="text-muted-foreground">
+                    No {matchType === "Singles" ? "players" : "teams"} added yet
+                  </p>
                 ) : (
                   <ul className="space-y-2 max-h-[300px] overflow-y-auto">
                     {teams.map((team) => (
-                      <li key={team.id} className="flex items-center justify-between border p-3 rounded-md">
+                      <li
+                        key={team.id}
+                        className="flex items-center justify-between border p-3 rounded-md"
+                      >
                         <div>
                           <p className="font-medium">{team.name}</p>
                           {team.players && team.players.length > 0 && (
-                            <p className="text-sm text-muted-foreground">{team.players.join(" / ")}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {team.players.join(" / ")}
+                            </p>
                           )}
-                          {team.skillLevel && <p className="text-sm text-muted-foreground">Skill: {team.skillLevel}</p>}
+                          {team.skillLevel && (
+                            <p className="text-sm text-muted-foreground">
+                              Skill: {team.skillLevel}
+                            </p>
+                          )}
                         </div>
-                        <Button variant="destructive" size="sm" onClick={() => handleRemoveTeam(team.id)}>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleRemoveTeam(team.id)}
+                        >
                           Remove
                         </Button>
                       </li>
@@ -368,11 +454,14 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // Helper function to generate dummy pickleball teams
-function generateDummyPickleballTeams(count: number, matchType: "Singles" | "Doubles" | "Mixed Doubles"): Team[] {
+function generateDummyPickleballTeams(
+  count: number,
+  matchType: "Singles" | "Doubles" | "Mixed Doubles"
+): Team[] {
   const playerFirstNames = [
     "John",
     "Sarah",
@@ -406,7 +495,7 @@ function generateDummyPickleballTeams(count: number, matchType: "Singles" | "Dou
     "Margaret",
     "Kenneth",
     "Betty",
-  ]
+  ];
 
   const playerLastNames = [
     "Smith",
@@ -441,19 +530,22 @@ function generateDummyPickleballTeams(count: number, matchType: "Singles" | "Dou
     "King",
     "Wright",
     "Lopez",
-  ]
+  ];
 
-  const skillLevels = ["3.0", "3.5", "4.0", "4.5", "5.0"]
-  const ageGroups = ["19+", "35+", "50+", "65+"]
+  const skillLevels = ["3.0", "3.5", "4.0", "4.5", "5.0"];
+  const ageGroups = ["19+", "35+", "50+", "65+"];
 
   return Array.from({ length: count }, (_, i) => {
-    const skillLevel = skillLevels[Math.floor(Math.random() * skillLevels.length)]
-    const ageGroup = ageGroups[Math.floor(Math.random() * ageGroups.length)]
+    const skillLevel =
+      skillLevels[Math.floor(Math.random() * skillLevels.length)];
+    const ageGroup = ageGroups[Math.floor(Math.random() * ageGroups.length)];
 
     if (matchType === "Singles") {
-      const firstName = playerFirstNames[Math.floor(Math.random() * playerFirstNames.length)]
-      const lastName = playerLastNames[Math.floor(Math.random() * playerLastNames.length)]
-      const playerName = `${firstName} ${lastName}`
+      const firstName =
+        playerFirstNames[Math.floor(Math.random() * playerFirstNames.length)];
+      const lastName =
+        playerLastNames[Math.floor(Math.random() * playerLastNames.length)];
+      const playerName = `${firstName} ${lastName}`;
 
       return {
         id: (i + 1).toString(),
@@ -462,24 +554,28 @@ function generateDummyPickleballTeams(count: number, matchType: "Singles" | "Dou
         skillLevel,
         ageGroup,
         gender: Math.random() > 0.5 ? "Men" : "Women",
-      }
+      };
     } else {
       // For doubles or mixed doubles
-      const player1FirstName = playerFirstNames[Math.floor(Math.random() * playerFirstNames.length)]
-      const player1LastName = playerLastNames[Math.floor(Math.random() * playerLastNames.length)]
-      const player2FirstName = playerFirstNames[Math.floor(Math.random() * playerFirstNames.length)]
-      const player2LastName = playerLastNames[Math.floor(Math.random() * playerLastNames.length)]
+      const player1FirstName =
+        playerFirstNames[Math.floor(Math.random() * playerFirstNames.length)];
+      const player1LastName =
+        playerLastNames[Math.floor(Math.random() * playerLastNames.length)];
+      const player2FirstName =
+        playerFirstNames[Math.floor(Math.random() * playerFirstNames.length)];
+      const player2LastName =
+        playerLastNames[Math.floor(Math.random() * playerLastNames.length)];
 
-      const player1 = `${player1FirstName} ${player1LastName}`
-      const player2 = `${player2FirstName} ${player2LastName}`
+      const player1 = `${player1FirstName} ${player1LastName}`;
+      const player2 = `${player2FirstName} ${player2LastName}`;
 
-      const teamName = `${player1LastName}/${player2LastName}`
-      let gender: "Men" | "Women" | "Mixed" = "Men"
+      const teamName = `${player1LastName}/${player2LastName}`;
+      let gender: "Men" | "Women" | "Mixed" = "Men";
 
       if (matchType === "Mixed Doubles") {
-        gender = "Mixed"
+        gender = "Mixed";
       } else {
-        gender = Math.random() > 0.5 ? "Men" : "Women"
+        gender = Math.random() > 0.5 ? "Men" : "Women";
       }
 
       return {
@@ -490,7 +586,7 @@ function generateDummyPickleballTeams(count: number, matchType: "Singles" | "Dou
         skillLevel,
         ageGroup,
         gender,
-      }
+      };
     }
-  })
+  });
 }
