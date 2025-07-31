@@ -1,102 +1,130 @@
-"use client"
+"use client";
 
-import { useMemo, useState, useEffect, useCallback, useRef } from "react"
-import { MatchCard } from "@/components/match-card"
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { type Tournament, type User, type Match, TournamentFormat, type Team } from "@/lib/types"
-import { Plus, Trash2, ChevronRight, ChevronLeft } from "lucide-react"
-import StandingsTable from "@/components/standings-table"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { useToast } from "@/hooks/use-toast"
-import { BracketLines } from "@/components/bracket-lines"
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
+import { MatchCard } from "@/components/match-card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  updateMatchInTournament,
-  saveTournamentsToLocalStorage,
-  updateTournament,
-  deleteMatchFromTournament,
-  addMatchToTournament,
-} from "@/lib/tournament-store"
+  type Tournament,
+  type User,
+  type Match,
+  TournamentFormat,
+  type Team,
+} from "@/lib/types";
+import { Plus, Trash2, ChevronRight, ChevronLeft } from "lucide-react";
+import StandingsTable from "@/components/standings-table";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { BracketLines } from "@/components/bracket-lines";
+import {
+  updateMatchInTournamentInDB,
+  saveTournamentsToDB,
+  updateTournamentInDB,
+  deleteMatchFromTournamentInDB,
+  addMatchToTournamentInDB,
+} from "@/lib/tournament-store";
 
 interface TournamentBracketProps {
-  tournament: Tournament
-  onUpdateMatch: (matchId: string, updatedMatch: Partial<Match>) => void
-  currentUser: User | null
+  tournament: Tournament;
+  onUpdateMatch: (matchId: string, updatedMatch: Partial<Match>) => void;
+  currentUser: User | null;
 }
 
-export default function TournamentBracket({ tournament, onUpdateMatch, currentUser }: TournamentBracketProps) {
-  const { matches, teams, format, pools } = tournament
-  const { toast } = useToast()
-  const [activePool, setActivePool] = useState<string | null>(pools && pools.length > 0 ? pools[0].id : null)
-  const bracketContainerRef = useRef<HTMLDivElement>(null)
+export default function TournamentBracket({
+  tournament,
+  onUpdateMatch,
+  currentUser,
+}: TournamentBracketProps) {
+  const { matches, teams, format, pools } = tournament;
+  const { toast } = useToast();
+  const [activePool, setActivePool] = useState<string | null>(
+    pools && pools.length > 0 ? pools[0].id : null
+  );
+  const bracketContainerRef = useRef<HTMLDivElement>(null);
 
   // For manual team assignment
-  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false)
-  const [currentMatch, setCurrentMatch] = useState<Match | null>(null)
-  const [team1Selection, setTeam1Selection] = useState<string>("")
-  const [team2Selection, setTeam2Selection] = useState<string>("")
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [currentMatch, setCurrentMatch] = useState<Match | null>(null);
+  const [team1Selection, setTeam1Selection] = useState<string>("");
+  const [team2Selection, setTeam2Selection] = useState<string>("");
 
   // For match deletion
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [matchToDelete, setMatchToDelete] = useState<Match | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [matchToDelete, setMatchToDelete] = useState<Match | null>(null);
 
   // For adding new matches
-  const [isAddMatchDialogOpen, setIsAddMatchDialogOpen] = useState(false)
-  const [newMatchRound, setNewMatchRound] = useState<number>(0)
-  const [newMatchPosition, setNewMatchPosition] = useState<number>(0)
-  const [newMatchPoolId, setNewMatchPoolId] = useState<string>("")
-  const [newMatchTeam1, setNewMatchTeam1] = useState<string>("")
-  const [newMatchTeam2, setNewMatchTeam2] = useState<string>("")
-  const [newMatchCourt, setNewMatchCourt] = useState<string>("")
-  const [newMatchTime, setNewMatchTime] = useState<string>("")
+  const [isAddMatchDialogOpen, setIsAddMatchDialogOpen] = useState(false);
+  const [newMatchRound, setNewMatchRound] = useState<number>(0);
+  const [newMatchPosition, setNewMatchPosition] = useState<number>(0);
+  const [newMatchPoolId, setNewMatchPoolId] = useState<string>("");
+  const [newMatchTeam1, setNewMatchTeam1] = useState<string>("");
+  const [newMatchTeam2, setNewMatchTeam2] = useState<string>("");
+  const [newMatchCourt, setNewMatchCourt] = useState<string>("");
+  const [newMatchTime, setNewMatchTime] = useState<string>("");
 
   // Track if we're currently populating the bracket
-  const [isPopulatingBracket, setIsPopulatingBracket] = useState(false)
+  const [isPopulatingBracket, setIsPopulatingBracket] = useState(false);
 
   // Add local state to track matches and tournament
-  const [localMatches, setLocalMatches] = useState<Match[]>(matches)
-  const [localTournament, setLocalTournament] = useState<Tournament>(tournament)
-  const [forceUpdateCounter, setForceUpdateCounter] = useState(0)
+  const [localMatches, setLocalMatches] = useState<Match[]>(matches);
+  const [localTournament, setLocalTournament] =
+    useState<Tournament>(tournament);
+  const [forceUpdateCounter, setForceUpdateCounter] = useState(0);
 
   // For mobile navigation
-  const [activeRound, setActiveRound] = useState(0)
-  const [isMobile, setIsMobile] = useState(false)
+  const [activeRound, setActiveRound] = useState(0);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Check if we're on a mobile device
   useEffect(() => {
     const checkIfMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
+      setIsMobile(window.innerWidth < 768);
+    };
 
-    checkIfMobile()
-    window.addEventListener("resize", checkIfMobile)
+    checkIfMobile();
+    window.addEventListener("resize", checkIfMobile);
 
     return () => {
-      window.removeEventListener("resize", checkIfMobile)
-    }
-  }, [])
+      window.removeEventListener("resize", checkIfMobile);
+    };
+  }, []);
 
   // Update local matches when tournament changes
   useEffect(() => {
-    setLocalMatches(matches)
-    setLocalTournament(tournament)
-  }, [matches, tournament])
+    setLocalMatches(matches);
+    setLocalTournament(tournament);
+  }, [matches, tournament]);
 
   const roundNames = useMemo(() => {
     if (format === TournamentFormat.ROUND_ROBIN) {
-      return Array.from({ length: tournament.totalRounds }, (_, i) => `Round ${i + 1}`)
+      return Array.from(
+        { length: tournament.totalRounds },
+        (_, i) => `Round ${i + 1}`
+      );
     }
 
-    const names = []
-    const totalRounds = tournament.totalRounds
+    const names = [];
+    const totalRounds = tournament.totalRounds;
 
     if (format === TournamentFormat.DOUBLE_ELIMINATION) {
       // For double elimination, we need to handle winners and losers brackets
-      const winnerRounds = Math.ceil(Math.log2(teams.length))
-      const loserRounds = winnerRounds * 2 - 1
+      const winnerRounds = Math.ceil(Math.log2(teams.length));
+      const loserRounds = winnerRounds * 2 - 1;
 
       // Winners bracket rounds
       for (let i = 0; i < winnerRounds; i++) {
@@ -104,144 +132,153 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           i === winnerRounds - 1
             ? "Winners Final"
             : i === winnerRounds - 2
-              ? "Winners Semi-Final"
-              : `Winners Round ${i + 1}`
+            ? "Winners Semi-Final"
+            : `Winners Round ${i + 1}`;
       }
 
       // Losers bracket rounds
       for (let i = 0; i < loserRounds; i++) {
         names[winnerRounds + i] =
-          i === loserRounds - 1 ? "Losers Final" : i === loserRounds - 2 ? "Losers Semi-Final" : `Losers Round ${i + 1}`
+          i === loserRounds - 1
+            ? "Losers Final"
+            : i === loserRounds - 2
+            ? "Losers Semi-Final"
+            : `Losers Round ${i + 1}`;
       }
 
       // Grand final
-      names[winnerRounds + loserRounds] = "Grand Final"
+      names[winnerRounds + loserRounds] = "Grand Final";
 
-      return names
+      return names;
     }
 
     // Single elimination format
     if (totalRounds === 1) {
-      names.push("Final")
-      return names
+      names.push("Final");
+      return names;
     }
 
-    if (totalRounds >= 2) names.push("Final")
-    if (totalRounds >= 3) names.push("Semi-Finals")
-    if (totalRounds >= 4) names.push("Quarter-Finals")
+    if (totalRounds >= 2) names.push("Final");
+    if (totalRounds >= 3) names.push("Semi-Finals");
+    if (totalRounds >= 4) names.push("Quarter-Finals");
 
     // Add Round of 16, Round of 32, etc.
     for (let i = 4; i < totalRounds; i++) {
-      names.push(`Round of ${Math.pow(2, i + 1)}`)
+      names.push(`Round of ${Math.pow(2, i + 1)}`);
     }
 
     // First round
-    names.push("First Round")
+    names.push("First Round");
 
-    return names.reverse()
-  }, [tournament.totalRounds, format, teams.length])
+    return names.reverse();
+  }, [tournament.totalRounds, format, teams.length]);
 
   // Group matches by round
   const matchesByRound = useMemo(() => {
-    const grouped: Record<number, Match[]> = {}
+    const grouped: Record<number, Match[]> = {};
 
     for (let i = 0; i < tournament.totalRounds; i++) {
-      grouped[i] = localMatches.filter((match) => match.round === i).sort((a, b) => a.position - b.position)
+      grouped[i] = localMatches
+        .filter((match) => match.round === i)
+        .sort((a, b) => a.position - b.position);
     }
 
-    return grouped
-  }, [tournament.totalRounds, localMatches])
+    return grouped;
+  }, [tournament.totalRounds, localMatches]);
 
   // Group knockout matches by round (for pool play)
   const knockoutMatchesByRound = useMemo(() => {
-    if (format !== TournamentFormat.POOL_PLAY) return {}
+    if (format !== TournamentFormat.POOL_PLAY) return {};
 
-    const grouped: Record<number, Match[]> = {}
+    const grouped: Record<number, Match[]> = {};
 
     // Get all knockout matches (round >= 100)
-    const knockoutMatches = localMatches.filter((m) => m.round >= 100)
+    const knockoutMatches = localMatches.filter((m) => m.round >= 100);
 
     // Group by round
     knockoutMatches.forEach((match) => {
-      const round = match.round
+      const round = match.round;
       if (!grouped[round]) {
-        grouped[round] = []
+        grouped[round] = [];
       }
-      grouped[round].push(match)
-    })
+      grouped[round].push(match);
+    });
 
     // Sort matches within each round
     Object.keys(grouped).forEach((roundKey) => {
-      const round = Number.parseInt(roundKey)
-      grouped[round] = grouped[round].sort((a, b) => a.position - b.position)
-    })
+      const round = Number.parseInt(roundKey);
+      grouped[round] = grouped[round].sort((a, b) => a.position - b.position);
+    });
 
-    return grouped
-  }, [format, localMatches])
+    return grouped;
+  }, [format, localMatches]);
 
   // Group pool matches by pool
   const matchesByPool = useMemo(() => {
-    if (!pools || pools.length === 0) return {}
+    if (!pools || pools.length === 0) return {};
 
-    const grouped: Record<string, Match[]> = {}
+    const grouped: Record<string, Match[]> = {};
 
     pools.forEach((pool) => {
-      const poolIdStr = pool.id.toString()
+      const poolIdStr = pool.id.toString();
       grouped[poolIdStr] = localMatches
         .filter((match) => {
           // Ensure we're comparing strings to strings
-          const matchPoolIdStr = match.poolId !== undefined ? match.poolId.toString() : undefined
-          return matchPoolIdStr === poolIdStr
+          const matchPoolIdStr =
+            match.poolId !== undefined ? match.poolId.toString() : undefined;
+          return matchPoolIdStr === poolIdStr;
         })
         .sort((a, b) => {
-          if (a.round !== b.round) return a.round - b.round
-          return a.position - b.position
-        })
-    })
+          if (a.round !== b.round) return a.round - b.round;
+          return a.position - b.position;
+        });
+    });
 
-    return grouped
-  }, [pools, localMatches])
+    return grouped;
+  }, [pools, localMatches]);
 
   // Find team by ID
   const getTeam = (id: string | null) => {
-    if (!id) return null
-    return teams.find((team) => team.id === id) || null
-  }
+    if (!id) return null;
+    return teams.find((team) => team.id === id) || null;
+  };
 
   // Check if a match is ready (both teams assigned or one team with a bye)
   const isMatchReady = (match: Match) => {
-    return (match.team1Id && match.team2Id) || match.isBye
-  }
+    return (match.team1Id && match.team2Id) || match.isBye;
+  };
 
   // Check if a match is completed
   const isMatchCompleted = (match: Match) => {
-    return !!match.winnerId || !!match.completed
-  }
+    return !!match.winnerId || !!match.completed;
+  };
 
   // Check if the tournament is completed
   const isTournamentCompleted = useMemo(() => {
     // For round robin, all matches must be completed
     if (format === TournamentFormat.ROUND_ROBIN) {
-      const totalMatches = matches.length
+      const totalMatches = matches.length;
       const completedMatches = matches.filter(
-        (match) => !!match.winnerId || (match.team1Score !== undefined && match.team2Score !== undefined),
-      ).length
+        (match) =>
+          !!match.winnerId ||
+          (match.team1Score !== undefined && match.team2Score !== undefined)
+      ).length;
 
-      return totalMatches > 0 && completedMatches === totalMatches
+      return totalMatches > 0 && completedMatches === totalMatches;
     }
 
     // For elimination formats, check if the final match is completed
-    const finalRound = tournament.totalRounds - 1
-    const finalMatch = matches.find((match) => match.round === finalRound)
+    const finalRound = tournament.totalRounds - 1;
+    const finalMatch = matches.find((match) => match.round === finalRound);
 
-    return finalMatch ? !!finalMatch.winnerId : false
-  }, [format, matches, tournament.totalRounds])
+    return finalMatch ? !!finalMatch.winnerId : false;
+  }, [format, matches, tournament.totalRounds]);
 
   // Get the winner of the tournament
   const tournamentWinner = useMemo(() => {
     // Only determine a winner if the tournament is completed
     if (!isTournamentCompleted) {
-      return null
+      return null;
     }
 
     if (format === TournamentFormat.ROUND_ROBIN) {
@@ -249,13 +286,13 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
       const teamStats: Record<
         string,
         {
-          points: number
-          wins: number
-          goalDifference: number
-          goalsFor: number
-          totalPoints: number
+          points: number;
+          wins: number;
+          goalDifference: number;
+          goalsFor: number;
+          totalPoints: number;
         }
-      > = {}
+      > = {};
 
       // Initialize stats
       teams.forEach((team) => {
@@ -265,156 +302,161 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           goalDifference: 0,
           goalsFor: 0,
           totalPoints: 0,
-        }
-      })
+        };
+      });
 
       // Calculate stats from matches
       matches.forEach((match) => {
         if (match.team1Id && match.team2Id) {
-          const team1Stats = teamStats[match.team1Id]
-          const team2Stats = teamStats[match.team2Id]
+          const team1Stats = teamStats[match.team1Id];
+          const team2Stats = teamStats[match.team2Id];
 
           // Add tracking for total points from game scores or total points
           if (match.team1Games && match.team2Games) {
             match.team1Games.forEach((score, i) => {
               if (score > 0 || (match.team2Games && match.team2Games[i] > 0)) {
-                if (team1Stats) team1Stats.totalPoints += score
-                if (team2Stats && match.team2Games) team2Stats.totalPoints += match.team2Games[i]
+                if (team1Stats) team1Stats.totalPoints += score;
+                if (team2Stats && match.team2Games)
+                  team2Stats.totalPoints += match.team2Games[i];
               }
-            })
+            });
           }
 
-          if (match.team1Score !== undefined && match.team2Score !== undefined) {
+          if (
+            match.team1Score !== undefined &&
+            match.team2Score !== undefined
+          ) {
             // Update goal stats
             if (team1Stats) {
-              team1Stats.goalDifference += match.team1Score - match.team2Score
-              team1Stats.goalsFor += match.team1Score
+              team1Stats.goalDifference += match.team1Score - match.team2Score;
+              team1Stats.goalsFor += match.team1Score;
             }
 
             if (team2Stats) {
-              team2Stats.goalDifference += match.team2Score - match.team1Score
-              team2Stats.goalsFor += match.team2Score
+              team2Stats.goalDifference += match.team2Score - match.team1Score;
+              team2Stats.goalsFor += match.team2Score;
             }
 
             // Update points and wins
             if (match.team1Score > match.team2Score) {
               if (team1Stats) {
-                team1Stats.points += 3
-                team1Stats.wins += 1
+                team1Stats.points += 3;
+                team1Stats.wins += 1;
               }
             } else if (match.team2Score > match.team1Score) {
               if (team2Stats) {
-                team2Stats.points += 3
-                team2Stats.wins += 1
+                team2Stats.points += 3;
+                team2Stats.wins += 1;
               }
             } else {
               // Draw
-              if (team1Stats) team1Stats.points += 1
-              if (team2Stats) team2Stats.points += 1
+              if (team1Stats) team1Stats.points += 1;
+              if (team2Stats) team2Stats.points += 1;
             }
           } else if (match.winnerId) {
             // If only winnerId is set (no scores)
-            const winnerStats = match.winnerId === match.team1Id ? team1Stats : team2Stats
+            const winnerStats =
+              match.winnerId === match.team1Id ? team1Stats : team2Stats;
             if (winnerStats) {
-              winnerStats.points += 3
-              winnerStats.wins += 1
+              winnerStats.points += 3;
+              winnerStats.wins += 1;
             }
           }
         }
-      })
+      });
 
       // Find the team with the highest points (and tiebreakers)
       const sortedTeams = Object.entries(teamStats).sort((a, b) => {
-        const [idA, statsA] = a
-        const [idB, statsB] = b
+        const [idA, statsA] = a;
+        const [idB, statsB] = b;
 
         // Sort by points
         if (statsA.points !== statsB.points) {
-          return statsB.points - statsA.points
+          return statsB.points - statsA.points;
         }
 
         // Tiebreaker 1: Wins
         if (statsA.wins !== statsB.wins) {
-          return statsB.wins - statsA.wins
+          return statsB.wins - statsA.wins;
         }
 
         // Tiebreaker 2: Goal difference
         if (statsA.goalDifference !== statsB.goalDifference) {
-          return statsB.goalDifference - statsA.goalDifference
+          return statsB.goalDifference - statsA.goalDifference;
         }
 
         // Tiebreaker 3: Goals scored
         if (statsA.goalsFor !== statsB.goalsFor) {
-          return statsB.goalsFor - statsA.goalsFor
+          return statsB.goalsFor - statsA.goalsFor;
         }
 
         // Tiebreaker 4: Total points scored
         if (statsA.totalPoints !== statsB.totalPoints) {
-          return statsB.totalPoints - statsA.totalPoints
+          return statsB.totalPoints - statsA.totalPoints;
         }
 
-        return 0
-      })
+        return 0;
+      });
 
       // Return the winner if we have teams
       if (sortedTeams.length > 0) {
-        const winnerId = sortedTeams[0][0]
-        return getTeam(winnerId)
+        const winnerId = sortedTeams[0][0];
+        return getTeam(winnerId);
       }
 
-      return null
+      return null;
     }
 
     // For elimination formats, get the winner of the final match
-    const finalRound = tournament.totalRounds - 1
-    const finalMatch = matches.find((match) => match.round === finalRound)
+    const finalRound = tournament.totalRounds - 1;
+    const finalMatch = matches.find((match) => match.round === finalRound);
 
     if (finalMatch?.winnerId) {
-      return getTeam(finalMatch.winnerId)
+      return getTeam(finalMatch.winnerId);
     }
 
-    return null
-  }, [format, isTournamentCompleted, matches, teams, tournament.totalRounds])
+    return null;
+  }, [format, isTournamentCompleted, matches, teams, tournament.totalRounds]);
 
   // Calculate pool standings
   const poolStandings = useMemo(() => {
-    if (!pools || pools.length === 0) return {}
+    if (!pools || pools.length === 0) return {};
 
     const standings: Record<
       string,
       Array<{
-        team: Team
-        played: number
-        wins: number
-        losses: number
-        points: number
-        position: number
-        goalDifference: number
-        goalsFor: number
-        totalPoints: number
-        gamesWon: number
-        gamesLost: number
-        qualified?: boolean
+        team: Team;
+        played: number;
+        wins: number;
+        losses: number;
+        points: number;
+        position: number;
+        goalDifference: number;
+        goalsFor: number;
+        totalPoints: number;
+        gamesWon: number;
+        gamesLost: number;
+        qualified?: boolean;
       }>
-    > = {}
+    > = {};
 
     pools.forEach((pool) => {
-      const poolIdStr = pool.id.toString()
-      const poolMatches = matchesByPool[poolIdStr] || []
+      const poolIdStr = pool.id.toString();
+      const poolMatches = matchesByPool[poolIdStr] || [];
       const poolTeamStats: Record<
         string,
         {
-          played: number
-          wins: number
-          losses: number
-          points: number
-          goalDifference: number
-          goalsFor: number
-          gamesWon: number
-          gamesLost: number
-          totalPoints: number
+          played: number;
+          wins: number;
+          losses: number;
+          points: number;
+          goalDifference: number;
+          goalsFor: number;
+          gamesWon: number;
+          gamesLost: number;
+          totalPoints: number;
         }
-      > = {}
+      > = {};
 
       // Initialize stats for all teams in this pool
       pool.teams.forEach((team) => {
@@ -428,143 +470,152 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           gamesWon: 0,
           gamesLost: 0,
           totalPoints: 0,
-        }
-      })
+        };
+      });
 
       // Calculate stats from matches
       poolMatches.forEach((match) => {
         if (match.team1Id && match.team2Id) {
-          const team1Stats = poolTeamStats[match.team1Id]
-          const team2Stats = poolTeamStats[match.team2Id]
+          const team1Stats = poolTeamStats[match.team1Id];
+          const team2Stats = poolTeamStats[match.team2Id];
 
-          if (team1Stats) team1Stats.played++
-          if (team2Stats) team2Stats.played++
+          if (team1Stats) team1Stats.played++;
+          if (team2Stats) team2Stats.played++;
 
           // Add game stats if available
           if (match.team1Games && match.team2Games) {
             match.team1Games.forEach((score, i) => {
               if (score > 0 || (match.team2Games && match.team2Games[i] > 0)) {
-                const team2Score = match.team2Games ? match.team2Games[i] : 0
+                const team2Score = match.team2Games ? match.team2Games[i] : 0;
 
                 if (score > team2Score) {
-                  if (team1Stats) team1Stats.gamesWon++
-                  if (team2Stats) team2Stats.gamesLost++
+                  if (team1Stats) team1Stats.gamesWon++;
+                  if (team2Stats) team2Stats.gamesLost++;
                 } else if (team2Score > score) {
-                  if (team2Stats) team2Stats.gamesWon++
-                  if (team1Stats) team1Stats.gamesLost++
+                  if (team2Stats) team2Stats.gamesWon++;
+                  if (team1Stats) team1Stats.gamesLost++;
                 }
 
                 // Add points
-                if (team1Stats) team1Stats.totalPoints += score
-                if (team2Stats && match.team2Games) team2Stats.totalPoints += team2Score
+                if (team1Stats) team1Stats.totalPoints += score;
+                if (team2Stats && match.team2Games)
+                  team2Stats.totalPoints += team2Score;
               }
-            })
+            });
           }
 
           // Add match stats
-          if (match.team1Score !== undefined && match.team2Score !== undefined) {
+          if (
+            match.team1Score !== undefined &&
+            match.team2Score !== undefined
+          ) {
             if (team1Stats) {
-              team1Stats.goalsFor += match.team1Score
-              team1Stats.goalDifference += match.team1Score - match.team2Score
+              team1Stats.goalsFor += match.team1Score;
+              team1Stats.goalDifference += match.team1Score - match.team2Score;
             }
 
             if (team2Stats) {
-              team2Stats.goalsFor += match.team2Score
-              team2Stats.goalDifference += match.team2Score - match.team1Score
+              team2Stats.goalsFor += match.team2Score;
+              team2Stats.goalDifference += match.team2Score - match.team1Score;
             }
           }
 
           // Determine winner
           if (match.winnerId === match.team1Id) {
             if (team1Stats) {
-              team1Stats.wins++
-              team1Stats.points += 3
+              team1Stats.wins++;
+              team1Stats.points += 3;
             }
-            if (team2Stats) team2Stats.losses++
+            if (team2Stats) team2Stats.losses++;
           } else if (match.winnerId === match.team2Id) {
             if (team2Stats) {
-              team2Stats.wins++
-              team2Stats.points += 3
+              team2Stats.wins++;
+              team2Stats.points += 3;
             }
-            if (team1Stats) team1Stats.losses++
+            if (team1Stats) team1Stats.losses++;
           }
         }
-      })
+      });
 
       // Convert to array and sort with comprehensive tiebreakers
       const sortedStandings = Object.entries(poolTeamStats)
         .map(([teamId, stats]) => {
-          const team = pool.teams.find((t) => t.id === teamId)!
+          const team = pool.teams.find((t) => t.id === teamId)!;
           return {
             team,
             ...stats,
             position: 0, // Will be set after sorting
             qualified: team.qualified || false, // Use the team's qualified status
-          }
+          };
         })
         .sort((a, b) => {
           // Sort by manual position first if available
-          if (a.team.manualPosition !== undefined && b.team.manualPosition !== undefined) {
-            return a.team.manualPosition - b.team.manualPosition
+          if (
+            a.team.manualPosition !== undefined &&
+            b.team.manualPosition !== undefined
+          ) {
+            return a.team.manualPosition - b.team.manualPosition;
           }
 
           // If only one has a manual position, prioritize it
-          if (a.team.manualPosition !== undefined) return -1
-          if (b.team.manualPosition !== undefined) return 1
+          if (a.team.manualPosition !== undefined) return -1;
+          if (b.team.manualPosition !== undefined) return 1;
 
           // Otherwise use standard sorting criteria
-          if (a.points !== b.points) return b.points - a.points
-          if (a.wins !== b.wins) return b.wins - a.wins
-          if (a.goalDifference !== b.goalDifference) return b.goalDifference - a.goalDifference
-          if (a.gamesWon !== b.gamesWon) return b.gamesWon - a.gamesWon
-          if (a.totalPoints !== b.totalPoints) return b.totalPoints - a.totalPoints
-          if (a.goalsFor !== b.goalsFor) return b.goalsFor - a.goalsFor
-          return a.team.id.localeCompare(b.team.id)
-        })
+          if (a.points !== b.points) return b.points - a.points;
+          if (a.wins !== b.wins) return b.wins - a.wins;
+          if (a.goalDifference !== b.goalDifference)
+            return b.goalDifference - a.goalDifference;
+          if (a.gamesWon !== b.gamesWon) return b.gamesWon - a.gamesWon;
+          if (a.totalPoints !== b.totalPoints)
+            return b.totalPoints - a.totalPoints;
+          if (a.goalsFor !== b.goalsFor) return b.goalsFor - a.goalsFor;
+          return a.team.id.localeCompare(b.team.id);
+        });
 
       // Assign positions after sorting
       sortedStandings.forEach((standing, index) => {
-        standing.position = index + 1
-      })
+        standing.position = index + 1;
+      });
 
-      standings[poolIdStr] = sortedStandings
-    })
+      standings[poolIdStr] = sortedStandings;
+    });
 
-    return standings
-  }, [pools, matchesByPool, localTournament, forceUpdateCounter])
+    return standings;
+  }, [pools, matchesByPool, localTournament, forceUpdateCounter]);
 
   // Check if all pool matches are completed
   const areAllPoolMatchesCompleted = useMemo(() => {
-    if (!pools || pools.length === 0) return false
+    if (!pools || pools.length === 0) return false;
 
     // Check if all pool matches have a winner
     for (const pool of pools) {
-      const poolIdStr = pool.id.toString()
-      const poolMatches = matchesByPool[poolIdStr] || []
+      const poolIdStr = pool.id.toString();
+      const poolMatches = matchesByPool[poolIdStr] || [];
 
       // If any match in this pool doesn't have a winner, return false
       if (poolMatches.some((match) => !match.winnerId)) {
-        return false
+        return false;
       }
     }
 
-    return true
-  }, [pools, matchesByPool])
+    return true;
+  }, [pools, matchesByPool]);
 
   // Get qualified teams from all pools
   const qualifiedTeams = useMemo(() => {
-    if (!pools || !poolStandings) return []
+    if (!pools || !poolStandings) return [];
 
     const qualified: Array<{
-      team: Team
-      position: number
-      poolId: string
-      poolName: string
-    }> = []
+      team: Team;
+      position: number;
+      poolId: string;
+      poolName: string;
+    }> = [];
 
     pools.forEach((pool) => {
-      const poolIdStr = pool.id.toString()
-      const poolStandingsList = poolStandings[poolIdStr] || []
+      const poolIdStr = pool.id.toString();
+      const poolStandingsList = poolStandings[poolIdStr] || [];
 
       // Get qualified teams from this pool
       const qualifiedFromPool = poolStandingsList
@@ -574,320 +625,370 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           position: standing.position,
           poolId: poolIdStr,
           poolName: pool.name,
-        }))
+        }));
 
-      qualified.push(...qualifiedFromPool)
-    })
+      qualified.push(...qualifiedFromPool);
+    });
 
-    return qualified
-  }, [pools, poolStandings])
+    return qualified;
+  }, [pools, poolStandings]);
 
   // Handle updating team positions
   const handleUpdatePositions = useCallback(
-    (teamPositions: Array<{ teamId: string; position: number }>, poolId: string) => {
-      if (!currentUser?.isAdmin) return
+    async (
+      teamPositions: Array<{ teamId: string; position: number }>,
+      poolId: string
+    ) => {
+      if (!currentUser?.isAdmin) return;
 
       try {
         // Create a deep copy of the tournament
-        const updatedTournament = JSON.parse(JSON.stringify(localTournament))
+        const updatedTournament = JSON.parse(JSON.stringify(localTournament));
 
         // Find the pool in the updated tournament
-        const poolIndex = updatedTournament.pools?.findIndex((p) => p.id.toString() === poolId)
-        if (poolIndex === -1 || poolIndex === undefined) return
+        const poolIndex = updatedTournament.pools?.findIndex(
+          (p) => p.id.toString() === poolId
+        );
+        if (poolIndex === -1 || poolIndex === undefined) return;
 
         // Update each team's manual position
         teamPositions.forEach(({ teamId, position }) => {
-          const teamIndex = updatedTournament.pools[poolIndex].teams.findIndex((t) => t.id === teamId)
+          const teamIndex = updatedTournament.pools[poolIndex].teams.findIndex(
+            (t) => t.id === teamId
+          );
           if (teamIndex !== -1) {
             // Update the team's manual position
-            updatedTournament.pools[poolIndex].teams[teamIndex].manualPosition = position
+            updatedTournament.pools[poolIndex].teams[teamIndex].manualPosition =
+              position;
           }
-        })
+        });
 
-        console.log(`Updated positions for ${teamPositions.length} teams in pool ${poolId}`, teamPositions)
+        console.log(
+          `Updated positions for ${teamPositions.length} teams in pool ${poolId}`,
+          teamPositions
+        );
 
         // Update local state immediately to reflect changes in UI
-        setLocalTournament(updatedTournament)
+        setLocalTournament(updatedTournament);
 
         // Update the tournament in the store
-        updateTournament(updatedTournament)
+        await updateTournamentInDB(updatedTournament);
 
         // Force save to localStorage
-        saveTournamentsToLocalStorage()
+        await saveTournamentsToDB();
 
         // Force a re-render
-        setForceUpdateCounter((prev) => prev + 1)
+        setForceUpdateCounter((prev) => prev + 1);
 
         // Show success toast
         toast({
           title: "Positions Updated",
           description: "Team positions have been successfully updated.",
           variant: "success",
-        })
+        });
       } catch (error) {
-        console.error("Error updating team positions:", error)
+        console.error("Error updating team positions:", error);
         toast({
           title: "Error",
           description: "Failed to update team positions.",
           variant: "destructive",
-        })
+        });
       }
     },
-    [currentUser, localTournament, toast],
-  )
+    [currentUser, localTournament, toast]
+  );
 
   // Handle toggling team qualification
   const handleToggleQualification = useCallback(
-    (teamId: string, poolId: string) => {
-      if (!currentUser?.isAdmin) return
+    async (teamId: string, poolId: string) => {
+      if (!currentUser?.isAdmin) return;
 
       try {
         // Create a deep copy of the tournament
-        const updatedTournament = JSON.parse(JSON.stringify(localTournament))
+        const updatedTournament = JSON.parse(JSON.stringify(localTournament));
 
         // Find the pool in the updated tournament
-        const poolIndex = updatedTournament.pools?.findIndex((p) => p.id.toString() === poolId)
-        if (poolIndex === -1 || poolIndex === undefined) return
+        const poolIndex = updatedTournament.pools?.findIndex(
+          (p) => p.id.toString() === poolId
+        );
+        if (poolIndex === -1 || poolIndex === undefined) return;
 
         // Find the team in the pool
-        const teamIndex = updatedTournament.pools[poolIndex].teams.findIndex((t) => t.id === teamId)
-        if (teamIndex === -1) return
+        const teamIndex = updatedTournament.pools[poolIndex].teams.findIndex(
+          (t) => t.id === teamId
+        );
+        if (teamIndex === -1) return;
 
         // Get the current team
-        const team = updatedTournament.pools[poolIndex].teams[teamIndex]
+        const team = updatedTournament.pools[poolIndex].teams[teamIndex];
 
         // Toggle the qualified status
-        const isCurrentlyQualified = team.qualified || false
-        team.qualified = !isCurrentlyQualified
+        const isCurrentlyQualified = team.qualified || false;
+        team.qualified = !isCurrentlyQualified;
 
-        console.log(`Toggling qualification for team ${team.name} to ${team.qualified}`)
+        console.log(
+          `Toggling qualification for team ${team.name} to ${team.qualified}`
+        );
 
         // Update local state immediately to reflect changes in UI
-        setLocalTournament(updatedTournament)
+        setLocalTournament(updatedTournament);
 
         // Update the tournament in the store
-        updateTournament(updatedTournament)
+        await updateTournamentInDB(updatedTournament);
 
         // Force save to localStorage
-        saveTournamentsToLocalStorage()
+        await saveTournamentsToDB();
 
         // Force a re-render
-        setForceUpdateCounter((prev) => prev + 1)
+        setForceUpdateCounter((prev) => prev + 1);
 
         // Show success toast
         toast({
           title: isCurrentlyQualified ? "Team Unqualified" : "Team Qualified",
-          description: `${team.name} has been ${isCurrentlyQualified ? "removed from" : "added to"} the qualified teams.`,
+          description: `${team.name} has been ${
+            isCurrentlyQualified ? "removed from" : "added to"
+          } the qualified teams.`,
           variant: "success",
-        })
+        });
       } catch (error) {
-        console.error("Error toggling team qualification:", error)
+        console.error("Error toggling team qualification:", error);
         toast({
           title: "Error",
           description: "Failed to update team qualification status.",
           variant: "destructive",
-        })
+        });
       }
     },
-    [currentUser, localTournament, toast],
-  )
+    [currentUser, localTournament, toast]
+  );
 
   // Automatically populate the knockout bracket with qualified teams
-  const populateKnockoutBracket = () => {
-    if (!areAllPoolMatchesCompleted || qualifiedTeams.length === 0 || isPopulatingBracket) {
+  const populateKnockoutBracket = async () => {
+    if (
+      !areAllPoolMatchesCompleted ||
+      qualifiedTeams.length === 0 ||
+      isPopulatingBracket
+    ) {
       console.log("Cannot populate bracket:", {
         areAllPoolMatchesCompleted,
         qualifiedTeamsLength: qualifiedTeams.length,
         isPopulatingBracket,
-      })
-      return
+      });
+      return;
     }
 
-    setIsPopulatingBracket(true)
-    console.log("Starting to populate knockout bracket with qualified teams:", qualifiedTeams)
+    setIsPopulatingBracket(true);
+    console.log(
+      "Starting to populate knockout bracket with qualified teams:",
+      qualifiedTeams
+    );
 
     try {
       // First, clear any existing team assignments in the knockout bracket
-      const knockoutMatches = tournament.matches.filter((m) => m.round >= 100)
-      console.log("Found knockout matches:", knockoutMatches.length)
+      const knockoutMatches = tournament.matches.filter((m) => m.round >= 100);
+      console.log("Found knockout matches:", knockoutMatches.length);
 
       knockoutMatches.forEach((match) => {
-        onUpdateMatch(match.id, { team1Id: null, team2Id: null, winnerId: null })
-      })
+        onUpdateMatch(match.id, {
+          team1Id: null,
+          team2Id: null,
+          winnerId: null,
+        });
+      });
 
       // Get the first round knockout matches
-      const knockoutRounds = Object.keys(knockoutMatchesByRound).sort()
+      const knockoutRounds = Object.keys(knockoutMatchesByRound).sort();
       if (knockoutRounds.length === 0) {
-        console.error("No knockout rounds found")
-        setIsPopulatingBracket(false)
-        return
+        console.error("No knockout rounds found");
+        setIsPopulatingBracket(false);
+        return;
       }
 
-      const firstRound = Number.parseInt(knockoutRounds[0])
-      const firstRoundMatches = [...(knockoutMatchesByRound[firstRound] || [])].sort((a, b) => a.position - b.position)
-      console.log("First round matches:", firstRoundMatches.length)
+      const firstRound = Number.parseInt(knockoutRounds[0]);
+      const firstRoundMatches = [
+        ...(knockoutMatchesByRound[firstRound] || []),
+      ].sort((a, b) => a.position - b.position);
+      console.log("First round matches:", firstRoundMatches.length);
 
       // Check if we have enough matches for the qualified teams
       if (firstRoundMatches.length * 2 < qualifiedTeams.length) {
-        console.error("Not enough matches for all qualified teams")
-        setIsPopulatingBracket(false)
-        return
+        console.error("Not enough matches for all qualified teams");
+        setIsPopulatingBracket(false);
+        return;
       }
 
       // Group teams by their pool
-      const teamsByPool: Record<string, Array<{ team: Team; position: number }>> = {}
+      const teamsByPool: Record<
+        string,
+        Array<{ team: Team; position: number }>
+      > = {};
       qualifiedTeams.forEach(({ team, position, poolId }) => {
         if (!teamsByPool[poolId]) {
-          teamsByPool[poolId] = []
+          teamsByPool[poolId] = [];
         }
-        teamsByPool[poolId].push({ team, position })
-      })
+        teamsByPool[poolId].push({ team, position });
+      });
 
       // Get pool IDs and sort them
-      const poolIds = Object.keys(teamsByPool).sort()
-      const numPools = poolIds.length
-      console.log("Pools with qualified teams:", numPools)
+      const poolIds = Object.keys(teamsByPool).sort();
+      const numPools = poolIds.length;
+      console.log("Pools with qualified teams:", numPools);
 
       // Create the seeding pattern to ensure teams from the same pool are on opposite sides
       // and teams with the same position don't meet in early rounds
-      const seededTeams: Team[] = []
+      const seededTeams: Team[] = [];
 
       // Improved seeding logic to separate teams from the same pool
       if (numPools === 2) {
         // For 2 pools: A1, B2, B1, A2
-        const poolA = teamsByPool[poolIds[0]]
-        const poolB = teamsByPool[poolIds[1]]
+        const poolA = teamsByPool[poolIds[0]];
+        const poolB = teamsByPool[poolIds[1]];
 
-        const a1 = poolA.find((t) => t.position === 1)?.team
-        const a2 = poolA.find((t) => t.position === 2)?.team
-        const b1 = poolB.find((t) => t.position === 1)?.team
-        const b2 = poolB.find((t) => t.position === 2)?.team
+        const a1 = poolA.find((t) => t.position === 1)?.team;
+        const a2 = poolA.find((t) => t.position === 2)?.team;
+        const b1 = poolB.find((t) => t.position === 1)?.team;
+        const b2 = poolB.find((t) => t.position === 2)?.team;
 
-        if (a1) seededTeams.push(a1)
-        if (b2) seededTeams.push(b2)
-        if (b1) seededTeams.push(b1)
-        if (a2) seededTeams.push(a2)
+        if (a1) seededTeams.push(a1);
+        if (b2) seededTeams.push(b2);
+        if (b1) seededTeams.push(b1);
+        if (a2) seededTeams.push(a2);
       } else if (numPools === 4) {
         // For 4 pools: A1, C1, B2, D2, D1, B1, C2, A2
-        const poolA = teamsByPool[poolIds[0]]
-        const poolB = teamsByPool[poolIds[1]]
-        const poolC = teamsByPool[poolIds[2]]
-        const poolD = teamsByPool[poolIds[3]]
+        const poolA = teamsByPool[poolIds[0]];
+        const poolB = teamsByPool[poolIds[1]];
+        const poolC = teamsByPool[poolIds[2]];
+        const poolD = teamsByPool[poolIds[3]];
 
-        const a1 = poolA.find((t) => t.position === 1)?.team
-        const a2 = poolA.find((t) => t.position === 2)?.team
-        const b1 = poolB.find((t) => t.position === 1)?.team
-        const b2 = poolB.find((t) => t.position === 2)?.team
-        const c1 = poolC.find((t) => t.position === 1)?.team
-        const c2 = poolC.find((t) => t.position === 2)?.team
-        const d1 = poolD.find((t) => t.position === 1)?.team
-        const d2 = poolD.find((t) => t.position === 2)?.team
+        const a1 = poolA.find((t) => t.position === 1)?.team;
+        const a2 = poolA.find((t) => t.position === 2)?.team;
+        const b1 = poolB.find((t) => t.position === 1)?.team;
+        const b2 = poolB.find((t) => t.position === 2)?.team;
+        const c1 = poolC.find((t) => t.position === 1)?.team;
+        const c2 = poolC.find((t) => t.position === 2)?.team;
+        const d1 = poolD.find((t) => t.position === 1)?.team;
+        const d2 = poolD.find((t) => t.position === 2)?.team;
 
-        if (a1) seededTeams.push(a1)
-        if (c1) seededTeams.push(c1)
-        if (b2) seededTeams.push(b2)
-        if (d2) seededTeams.push(d2)
-        if (d1) seededTeams.push(d1)
-        if (b1) seededTeams.push(b1)
-        if (c2) seededTeams.push(c2)
-        if (a2) seededTeams.push(a2)
+        if (a1) seededTeams.push(a1);
+        if (c1) seededTeams.push(c1);
+        if (b2) seededTeams.push(b2);
+        if (d2) seededTeams.push(d2);
+        if (d1) seededTeams.push(d1);
+        if (b1) seededTeams.push(b1);
+        if (c2) seededTeams.push(c2);
+        if (a2) seededTeams.push(a2);
       } else if (numPools === 3) {
         // For 3 pools: A1, C1, B2, A2, B1, C2
-        const poolA = teamsByPool[poolIds[0]]
-        const poolB = teamsByPool[poolIds[1]]
-        const poolC = teamsByPool[poolIds[2]]
+        const poolA = teamsByPool[poolIds[0]];
+        const poolB = teamsByPool[poolIds[1]];
+        const poolC = teamsByPool[poolIds[2]];
 
-        const a1 = poolA.find((t) => t.position === 1)?.team
-        const a2 = poolA.find((t) => t.position === 2)?.team
-        const b1 = poolB.find((t) => t.position === 1)?.team
-        const b2 = poolB.find((t) => t.position === 2)?.team
-        const c1 = poolC.find((t) => t.position === 1)?.team
-        const c2 = poolC.find((t) => t.position === 2)?.team
+        const a1 = poolA.find((t) => t.position === 1)?.team;
+        const a2 = poolA.find((t) => t.position === 2)?.team;
+        const b1 = poolB.find((t) => t.position === 1)?.team;
+        const b2 = poolB.find((t) => t.position === 2)?.team;
+        const c1 = poolC.find((t) => t.position === 1)?.team;
+        const c2 = poolC.find((t) => t.position === 2)?.team;
 
-        if (a1) seededTeams.push(a1)
-        if (c1) seededTeams.push(c1)
-        if (b2) seededTeams.push(b2)
-        if (a2) seededTeams.push(a2)
-        if (b1) seededTeams.push(b1)
-        if (c2) seededTeams.push(c2)
+        if (a1) seededTeams.push(a1);
+        if (c1) seededTeams.push(c1);
+        if (b2) seededTeams.push(b2);
+        if (a2) seededTeams.push(a2);
+        if (b1) seededTeams.push(b1);
+        if (c2) seededTeams.push(c2);
       } else {
         // For other numbers of pools, use a more general approach that ensures
         // teams from the same pool don't meet in the first round
 
         // First, create pairs of teams from each pool
-        const poolPairs: Array<{ first: Team; second: Team; poolId: string }> = []
+        const poolPairs: Array<{ first: Team; second: Team; poolId: string }> =
+          [];
 
         poolIds.forEach((poolId) => {
-          const poolTeams = teamsByPool[poolId]
-          const first = poolTeams.find((t) => t.position === 1)?.team
-          const second = poolTeams.find((t) => t.position === 2)?.team
+          const poolTeams = teamsByPool[poolId];
+          const first = poolTeams.find((t) => t.position === 1)?.team;
+          const second = poolTeams.find((t) => t.position === 2)?.team;
 
           if (first && second) {
-            poolPairs.push({ first, second, poolId })
+            poolPairs.push({ first, second, poolId });
           }
-        })
+        });
 
         // Then distribute them across the bracket to ensure teams from the same pool
         // are in opposite halves
         for (let i = 0; i < poolPairs.length; i++) {
-          const pair = poolPairs[i]
+          const pair = poolPairs[i];
 
           // Place first place teams
-          seededTeams[i] = pair.first
+          seededTeams[i] = pair.first;
 
           // Place second place teams in opposite half
-          const oppositePosition = poolPairs.length * 2 - 1 - i
-          seededTeams[oppositePosition] = pair.second
+          const oppositePosition = poolPairs.length * 2 - 1 - i;
+          seededTeams[oppositePosition] = pair.second;
         }
 
         // Remove any undefined entries
-        const cleanedSeededTeams = seededTeams.filter((team) => team !== undefined)
-        seededTeams.length = 0
-        seededTeams.push(...cleanedSeededTeams)
+        const cleanedSeededTeams = seededTeams.filter(
+          (team) => team !== undefined
+        );
+        seededTeams.length = 0;
+        seededTeams.push(...cleanedSeededTeams);
       }
 
       console.log(
         "Seeded teams for bracket:",
-        seededTeams.map((t) => t.name),
-      )
+        seededTeams.map((t) => t.name)
+      );
 
       // Assign teams to matches using standard bracket distribution
-      const totalTeams = seededTeams.length
-      const perfectBracketSize = Math.pow(2, Math.ceil(Math.log2(totalTeams)))
-      const firstRoundMatchCount = perfectBracketSize / 2
+      const totalTeams = seededTeams.length;
+      const perfectBracketSize = Math.pow(2, Math.ceil(Math.log2(totalTeams)));
+      const firstRoundMatchCount = perfectBracketSize / 2;
 
       // Assign teams to matches
       for (let i = 0; i < firstRoundMatchCount; i++) {
-        if (i >= firstRoundMatches.length) break
+        if (i >= firstRoundMatches.length) break;
 
-        const match = firstRoundMatches[i]
+        const match = firstRoundMatches[i];
 
         // Calculate the ideal positions for this match using standard bracket seeding
-        const seedPosition1 = i
-        const seedPosition2 = firstRoundMatchCount * 2 - 1 - i
+        const seedPosition1 = i;
+        const seedPosition2 = firstRoundMatchCount * 2 - 1 - i;
 
         // Assign team 1 if available
         if (seedPosition1 < totalTeams) {
-          const team1 = seededTeams[seedPosition1]
-          console.log(`Assigning ${team1.name} to match ${match.id} as team1`)
+          const team1 = seededTeams[seedPosition1];
+          console.log(`Assigning ${team1.name} to match ${match.id} as team1`);
 
           // Use a direct update to ensure the team assignment persists
-          updateMatchInTournament(tournament.id, match.id, { team1Id: team1.id })
+          await updateMatchInTournamentInDB(tournament.id, match.id, {
+            team1Id: team1.id,
+          });
 
           // Also update local state
-          setLocalMatches((prev) => prev.map((m) => (m.id === match.id ? { ...m, team1Id: team1.id } : m)))
+          setLocalMatches((prev) =>
+            prev.map((m) =>
+              m.id === match.id ? { ...m, team1Id: team1.id } : m
+            )
+          );
         }
 
         // Assign team 2 if available
         if (seedPosition2 < totalTeams) {
-          const team2 = seededTeams[seedPosition2]
-          console.log(`Assigning ${team2.name} to match ${match.id} as team2`)
+          const team2 = seededTeams[seedPosition2];
+          console.log(`Assigning ${team2.name} to match ${match.id} as team2`);
 
           // Use a direct update to ensure the team assignment persists
-          updateMatchInTournament(tournament.id, match.id, { team2Id: team2.id })
+          await updateMatchInTournamentInDB(tournament.id, match.id, {
+            team2Id: team2.id,
+          });
 
           // Also update local state
-          setLocalMatches((prev) => prev.map((m) => (m.id === match.id ? { ...m, team2Id: team2.id } : m)))
+          setLocalMatches((prev) =>
+            prev.map((m) =>
+              m.id === match.id ? { ...m, team2Id: team2.id } : m
+            )
+          );
         }
       }
 
@@ -897,42 +998,47 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
         const updatedTournament = {
           ...tournament,
           knockoutBracketPopulated: true,
-        }
+        };
 
         // Update the tournament in the store
-        updateTournament(updatedTournament)
+        await updateTournamentInDB(updatedTournament);
 
         // Force save to localStorage
-        saveTournamentsToLocalStorage()
+        await saveTournamentsToDB();
       }
 
-      console.log("Knockout bracket population completed")
+      console.log("Knockout bracket population completed");
 
       // Show success toast
       toast({
         title: "Bracket Populated",
-        description: "Knockout bracket has been populated with qualified teams.",
+        description:
+          "Knockout bracket has been populated with qualified teams.",
         variant: "success",
-      })
+      });
     } catch (error) {
-      console.error("Error populating knockout bracket:", error)
+      console.error("Error populating knockout bracket:", error);
 
       // Show error toast
       toast({
         title: "Error",
-        description: "Failed to populate the knockout bracket. Please try again.",
+        description:
+          "Failed to populate the knockout bracket. Please try again.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsPopulatingBracket(false)
+      setIsPopulatingBracket(false);
     }
-  }
+  };
 
   // Check if knockout bracket has already been populated
   const isKnockoutBracketPopulated = useMemo(() => {
     // Check if any knockout match has teams assigned
-    return tournament.knockoutBracketPopulated || localMatches.some((m) => m.round >= 100 && (m.team1Id || m.team2Id))
-  }, [tournament, localMatches])
+    return (
+      tournament.knockoutBracketPopulated ||
+      localMatches.some((m) => m.round >= 100 && (m.team1Id || m.team2Id))
+    );
+  }, [tournament, localMatches]);
 
   // Force knockout bracket update when all pool matches are completed
   useEffect(() => {
@@ -943,49 +1049,56 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
       format === TournamentFormat.POOL_PLAY
     ) {
       // Auto-populate the bracket when all pool matches are completed and it hasn't been populated yet
-      populateKnockoutBracket()
+      populateKnockoutBracket();
     }
-  }, [areAllPoolMatchesCompleted, qualifiedTeams.length, isKnockoutBracketPopulated, format])
+  }, [
+    areAllPoolMatchesCompleted,
+    qualifiedTeams.length,
+    isKnockoutBracketPopulated,
+    format,
+  ]);
 
   // Open the team assignment dialog for a specific match
   const openAssignDialog = (match: Match) => {
-    if (!currentUser?.isAdmin) return
+    if (!currentUser?.isAdmin) return;
 
-    setCurrentMatch(match)
-    setTeam1Selection(match.team1Id || "none")
-    setTeam2Selection(match.team2Id || "none")
-    setIsAssignDialogOpen(true)
-  }
+    setCurrentMatch(match);
+    setTeam1Selection(match.team1Id || "none");
+    setTeam2Selection(match.team2Id || "none");
+    setIsAssignDialogOpen(true);
+  };
 
   // Handle saving team assignments from the dialog
-  const handleSaveTeamAssignment = () => {
-    if (!currentMatch) return
+  const handleSaveTeamAssignment = async () => {
+    if (!currentMatch) return;
 
-    const updates: Partial<Match> = {}
+    const updates: Partial<Match> = {};
 
     if (team1Selection && team1Selection !== "none") {
-      updates.team1Id = team1Selection
+      updates.team1Id = team1Selection;
     } else if (team1Selection === "none") {
-      updates.team1Id = null
+      updates.team1Id = null;
     }
 
     if (team2Selection && team2Selection !== "none") {
-      updates.team2Id = team2Selection
+      updates.team2Id = team2Selection;
     } else if (team2Selection === "none") {
-      updates.team2Id = null
+      updates.team2Id = null;
     }
 
     // Update local state
-    const updatedMatches = localMatches.map((m) => (m.id === currentMatch.id ? { ...m, ...updates } : m))
-    setLocalMatches(updatedMatches)
+    const updatedMatches = localMatches.map((m) =>
+      m.id === currentMatch.id ? { ...m, ...updates } : m
+    );
+    setLocalMatches(updatedMatches);
 
     // Direct update to ensure persistence
-    updateMatchInTournament(tournament.id, currentMatch.id, updates)
+    await updateMatchInTournamentInDB(tournament.id, currentMatch.id, updates);
 
     // Call the parent's update function
-    onUpdateMatch(currentMatch.id, updates)
+    onUpdateMatch(currentMatch.id, updates);
 
-    setIsAssignDialogOpen(false)
+    setIsAssignDialogOpen(false);
 
     // Show toast notification
     if (currentUser?.isAdmin) {
@@ -993,18 +1106,21 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
         title: "Teams Assigned",
         description: "Teams have been successfully assigned to the match.",
         variant: "success",
-      })
+      });
     }
-  }
+  };
 
   // Handle match winner and advance to next round
-  const handleUpdateMatch = (matchId: string, updatedMatch: Partial<Match>) => {
-    const match = localMatches.find((m) => m.id === matchId)
-    if (!match) return
+  const handleUpdateMatch = async (
+    matchId: string,
+    updatedMatch: Partial<Match>
+  ) => {
+    const match = localMatches.find((m) => m.id === matchId);
+    if (!match) return;
 
     // Ensure completed flag is set if winner is set
     if (updatedMatch.winnerId !== undefined && updatedMatch.winnerId !== null) {
-      updatedMatch.completed = true
+      updatedMatch.completed = true;
     }
 
     // Debug to see what's happening
@@ -1012,353 +1128,448 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
       current: match.winnerId,
       new: updatedMatch.winnerId,
       update: updatedMatch,
-    })
+    });
 
     // Create a deep copy of matches to avoid reference issues
-    const updatedMatches = JSON.parse(JSON.stringify(localMatches)) as Match[]
-    const matchIndex = updatedMatches.findIndex((m) => m.id === matchId)
+    const updatedMatches = JSON.parse(JSON.stringify(localMatches)) as Match[];
+    const matchIndex = updatedMatches.findIndex((m) => m.id === matchId);
 
     if (matchIndex !== -1) {
       // Update the specific match with the new data, preserving existing team assignments
       updatedMatches[matchIndex] = {
         ...updatedMatches[matchIndex],
         ...updatedMatch,
-      }
+      };
 
       // Update local state first for immediate UI feedback
-      setLocalMatches(updatedMatches)
+      setLocalMatches(updatedMatches);
     }
 
     // Direct update to ensure persistence - IMPORTANT: only update the specific fields that changed
     // This prevents other fields like team1Id and team2Id from being cleared
-    updateMatchInTournament(tournament.id, matchId, updatedMatch)
+    await updateMatchInTournamentInDB(tournament.id, matchId, updatedMatch);
 
     // Call the parent's update function with only the specific updates
-    onUpdateMatch(matchId, updatedMatch)
+    onUpdateMatch(matchId, updatedMatch);
 
     // If a winner is set, advance to the next round
     if (updatedMatch.winnerId && match.winnerId !== updatedMatch.winnerId) {
-      advanceWinnerToNextRound(match, updatedMatch.winnerId)
+      advanceWinnerToNextRound(match, updatedMatch.winnerId);
     }
 
-    setForceUpdateCounter((prev) => prev + 1)
-  }
+    setForceUpdateCounter((prev) => prev + 1);
+  };
 
   // Function to advance winner to the next round
-  const advanceWinnerToNextRound = (match: Match, winnerId: string) => {
+  const advanceWinnerToNextRound = async (match: Match, winnerId: string) => {
     // For pool play knockout stage
     if (format === TournamentFormat.POOL_PLAY && match.round >= 100) {
-      const currentRound = match.round
-      const nextRound = currentRound + 1
+      const currentRound = match.round;
+      const nextRound = currentRound + 1;
 
       // Find the next match in the knockout bracket
-      const nextMatchPosition = Math.floor(match.position / 2)
-      const nextMatch = localMatches.find((m) => m.round === nextRound && m.position === nextMatchPosition)
+      const nextMatchPosition = Math.floor(match.position / 2);
+      const nextMatch = localMatches.find(
+        (m) => m.round === nextRound && m.position === nextMatchPosition
+      );
 
       if (nextMatch) {
         // Determine if this winner goes to team1 or team2 slot
-        const updates = match.position % 2 === 0 ? { team1Id: winnerId } : { team2Id: winnerId }
+        const updates =
+          match.position % 2 === 0
+            ? { team1Id: winnerId }
+            : { team2Id: winnerId };
 
         // Create a deep copy of matches to avoid reference issues
-        const updatedMatches = JSON.parse(JSON.stringify(localMatches)) as Match[]
-        const nextMatchIndex = updatedMatches.findIndex((m) => m.id === nextMatch.id)
+        const updatedMatches = JSON.parse(
+          JSON.stringify(localMatches)
+        ) as Match[];
+        const nextMatchIndex = updatedMatches.findIndex(
+          (m) => m.id === nextMatch.id
+        );
 
         if (nextMatchIndex !== -1) {
           // Update only the specific field (team1Id or team2Id)
           updatedMatches[nextMatchIndex] = {
             ...updatedMatches[nextMatchIndex],
             ...updates,
-          }
+          };
 
           // Update local state
-          setLocalMatches(updatedMatches)
+          setLocalMatches(updatedMatches);
         }
 
         // Direct update to ensure persistence - IMPORTANT: only update the specific field
         if (tournament.id) {
-          updateMatchInTournament(tournament.id, nextMatch.id, updates)
+          await updateMatchInTournamentInDB(
+            tournament.id,
+            nextMatch.id,
+            updates
+          );
         }
 
         // Call the parent's update function with only the specific updates
-        onUpdateMatch(nextMatch.id, updates)
+        onUpdateMatch(nextMatch.id, updates);
       }
     }
 
     // Keep the rest of the function as is for other tournament formats...
     else if (format === TournamentFormat.SINGLE_ELIMINATION) {
-      const currentRound = match.round
-      const nextRound = currentRound + 1
+      const currentRound = match.round;
+      const nextRound = currentRound + 1;
 
       // Check if there's a next round
       if (nextRound < tournament.totalRounds) {
-        const nextMatchPosition = Math.floor(match.position / 2)
-        const nextMatch = localMatches.find((m) => m.round === nextRound && m.position === nextMatchPosition)
+        const nextMatchPosition = Math.floor(match.position / 2);
+        const nextMatch = localMatches.find(
+          (m) => m.round === nextRound && m.position === nextMatchPosition
+        );
 
         if (nextMatch) {
           // Determine if this winner goes to team1 or team2 slot
-          const updates = match.position % 2 === 0 ? { team1Id: winnerId } : { team2Id: winnerId }
+          const updates =
+            match.position % 2 === 0
+              ? { team1Id: winnerId }
+              : { team2Id: winnerId };
 
           // Create a deep copy of matches to avoid reference issues
-          const updatedMatches = JSON.parse(JSON.stringify(localMatches)) as Match[]
-          const nextMatchIndex = updatedMatches.findIndex((m) => m.id === nextMatch.id)
+          const updatedMatches = JSON.parse(
+            JSON.stringify(localMatches)
+          ) as Match[];
+          const nextMatchIndex = updatedMatches.findIndex(
+            (m) => m.id === nextMatch.id
+          );
 
           if (nextMatchIndex !== -1) {
             // Update only the specific field (team1Id or team2Id)
             updatedMatches[nextMatchIndex] = {
               ...updatedMatches[nextMatchIndex],
               ...updates,
-            }
+            };
 
             // Update local state
-            setLocalMatches(updatedMatches)
+            setLocalMatches(updatedMatches);
           }
 
           // Direct update to ensure persistence
-          updateMatchInTournament(tournament.id, nextMatch.id, updates)
+          await updateMatchInTournamentInDB(
+            tournament.id,
+            nextMatch.id,
+            updates
+          );
 
           // Call the parent's update function
-          onUpdateMatch(nextMatch.id, updates)
+          onUpdateMatch(nextMatch.id, updates);
         }
       }
     }
     // For double elimination and other formats, similar logic applies...
     else if (format === TournamentFormat.DOUBLE_ELIMINATION) {
-      const currentRound = match.round
+      const currentRound = match.round;
 
       // Handle winners bracket matches
       if (match.isWinnersBracket) {
-        const nextRound = currentRound + 1
+        const nextRound = currentRound + 1;
 
         // If not the final round of winners bracket
         if (nextRound < tournament.totalWinnerRounds!) {
-          const nextMatchPosition = Math.floor(match.position / 2)
+          const nextMatchPosition = Math.floor(match.position / 2);
           const nextMatch = localMatches.find(
-            (m) => m.round === nextRound && m.position === nextMatchPosition && m.isWinnersBracket,
-          )
+            (m) =>
+              m.round === nextRound &&
+              m.position === nextMatchPosition &&
+              m.isWinnersBracket
+          );
 
           if (nextMatch) {
             // Determine if this winner goes to team1 or team2 slot
-            const updates = match.position % 2 === 0 ? { team1Id: winnerId } : { team2Id: winnerId }
+            const updates =
+              match.position % 2 === 0
+                ? { team1Id: winnerId }
+                : { team2Id: winnerId };
 
             // Create a deep copy of matches to avoid reference issues
-            const updatedMatches = JSON.parse(JSON.stringify(localMatches)) as Match[]
-            const nextMatchIndex = updatedMatches.findIndex((m) => m.id === nextMatch.id)
+            const updatedMatches = JSON.parse(
+              JSON.stringify(localMatches)
+            ) as Match[];
+            const nextMatchIndex = updatedMatches.findIndex(
+              (m) => m.id === nextMatch.id
+            );
 
             if (nextMatchIndex !== -1) {
               // Update only the specific field (team1Id or team2Id)
               updatedMatches[nextMatchIndex] = {
                 ...updatedMatches[nextMatchIndex],
                 ...updates,
-              }
+              };
 
               // Update local state
-              setLocalMatches(updatedMatches)
+              setLocalMatches(updatedMatches);
             }
 
             // Direct update to ensure persistence
-            updateMatchInTournament(tournament.id, nextMatch.id, updates)
+            await updateMatchInTournamentInDB(
+              tournament.id,
+              nextMatch.id,
+              updates
+            );
 
             // Call the parent's update function
-            onUpdateMatch(nextMatch.id, updates)
+            onUpdateMatch(nextMatch.id, updates);
           }
         }
         // If it's the winners bracket final
         else if (nextRound === tournament.totalWinnerRounds) {
           // Winner goes to grand final
-          const finalMatch = localMatches.find((m) => m.id === "final-match")
+          const finalMatch = localMatches.find((m) => m.id === "final-match");
           if (finalMatch) {
-            const updates = { team1Id: winnerId }
+            const updates = { team1Id: winnerId };
 
             // Create a deep copy of matches to avoid reference issues
-            const updatedMatches = JSON.parse(JSON.stringify(localMatches)) as Match[]
-            const finalMatchIndex = updatedMatches.findIndex((m) => m.id === finalMatch.id)
+            const updatedMatches = JSON.parse(
+              JSON.stringify(localMatches)
+            ) as Match[];
+            const finalMatchIndex = updatedMatches.findIndex(
+              (m) => m.id === finalMatch.id
+            );
 
             if (finalMatchIndex !== -1) {
               // Update only the specific field (team1Id)
               updatedMatches[finalMatchIndex] = {
                 ...updatedMatches[finalMatchIndex],
                 ...updates,
-              }
+              };
 
               // Update local state
-              setLocalMatches(updatedMatches)
+              setLocalMatches(updatedMatches);
             }
 
             // Direct update to ensure persistence
-            updateMatchInTournament(tournament.id, finalMatch.id, updates)
+            await updateMatchInTournamentInDB(
+              tournament.id,
+              finalMatch.id,
+              updates
+            );
 
             // Call the parent's update function
-            onUpdateMatch(finalMatch.id, updates)
+            onUpdateMatch(finalMatch.id, updates);
           }
         }
 
         // Handle the loser of this match
         if (match.team1Id && match.team2Id && match.loserGoesTo) {
-          const loserId = match.team1Id === winnerId ? match.team2Id : match.team1Id
-          const loserMatch = localMatches.find((m) => m.id === match.loserGoesTo)
+          const loserId =
+            match.team1Id === winnerId ? match.team2Id : match.team1Id;
+          const loserMatch = localMatches.find(
+            (m) => m.id === match.loserGoesTo
+          );
 
           if (loserMatch) {
             // For first round losers, alternate between team1 and team2 slots
-            const updates = match.round === 0 && match.position % 2 === 0 ? { team1Id: loserId } : { team2Id: loserId }
+            const updates =
+              match.round === 0 && match.position % 2 === 0
+                ? { team1Id: loserId }
+                : { team2Id: loserId };
 
             // Create a deep copy of matches to avoid reference issues
-            const updatedMatches = JSON.parse(JSON.stringify(localMatches)) as Match[]
-            const loserMatchIndex = updatedMatches.findIndex((m) => m.id === loserMatch.id)
+            const updatedMatches = JSON.parse(
+              JSON.stringify(localMatches)
+            ) as Match[];
+            const loserMatchIndex = updatedMatches.findIndex(
+              (m) => m.id === loserMatch.id
+            );
 
             if (loserMatchIndex !== -1) {
               // Update only the specific field (team1Id or team2Id)
               updatedMatches[loserMatchIndex] = {
                 ...updatedMatches[loserMatchIndex],
                 ...updates,
-              }
+              };
 
               // Update local state
-              setLocalMatches(updatedMatches)
+              setLocalMatches(updatedMatches);
             }
 
             // Direct update to ensure persistence
-            updateMatchInTournament(tournament.id, loserMatch.id, updates)
+            await updateMatchInTournamentInDB(
+              tournament.id,
+              loserMatch.id,
+              updates
+            );
 
             // Call the parent's update function
-            onUpdateMatch(loserMatch.id, updates)
+            onUpdateMatch(loserMatch.id, updates);
           }
         }
       }
       // Handle losers bracket matches
       else if (!match.isWinnersBracket && match.id !== "final-match") {
         if (match.winnerGoesTo) {
-          const nextMatch = localMatches.find((m) => m.id === match.winnerGoesTo)
+          const nextMatch = localMatches.find(
+            (m) => m.id === match.winnerGoesTo
+          );
           if (nextMatch) {
             // For losers bracket, determine if this is a consolidation round
-            const isConsolidationRound = (match.round - tournament.totalWinnerRounds!) % 2 === 0
+            const isConsolidationRound =
+              (match.round - tournament.totalWinnerRounds!) % 2 === 0;
             const updates =
-              isConsolidationRound || match.position % 2 === 0 ? { team1Id: winnerId } : { team2Id: winnerId }
+              isConsolidationRound || match.position % 2 === 0
+                ? { team1Id: winnerId }
+                : { team2Id: winnerId };
 
             // Create a deep copy of matches to avoid reference issues
-            const updatedMatches = JSON.parse(JSON.stringify(localMatches)) as Match[]
-            const nextMatchIndex = updatedMatches.findIndex((m) => m.id === nextMatch.id)
+            const updatedMatches = JSON.parse(
+              JSON.stringify(localMatches)
+            ) as Match[];
+            const nextMatchIndex = updatedMatches.findIndex(
+              (m) => m.id === nextMatch.id
+            );
 
             if (nextMatchIndex !== -1) {
               // Update only the specific field (team1Id or team2Id)
               updatedMatches[nextMatchIndex] = {
                 ...updatedMatches[nextMatchIndex],
                 ...updates,
-              }
+              };
 
               // Update local state
-              setLocalMatches(updatedMatches)
+              setLocalMatches(updatedMatches);
             }
 
             // Direct update to ensure persistence
-            updateMatchInTournament(tournament.id, nextMatch.id, updates)
+            await updateMatchInTournamentInDB(
+              tournament.id,
+              nextMatch.id,
+              updates
+            );
 
             // Call the parent's update function
-            onUpdateMatch(nextMatch.id, updates)
+            onUpdateMatch(nextMatch.id, updates);
           }
         }
       }
       // Handle losers final
       else if (match.round === tournament.totalRounds - 2) {
         // Winner of losers final goes to grand final
-        const finalMatch = localMatches.find((m) => m.id === "final-match")
+        const finalMatch = localMatches.find((m) => m.id === "final-match");
         if (finalMatch) {
-          const updates = { team2Id: winnerId }
+          const updates = { team2Id: winnerId };
 
           // Create a deep copy of matches to avoid reference issues
-          const updatedMatches = JSON.parse(JSON.stringify(localMatches)) as Match[]
-          const finalMatchIndex = updatedMatches.findIndex((m) => m.id === finalMatch.id)
+          const updatedMatches = JSON.parse(
+            JSON.stringify(localMatches)
+          ) as Match[];
+          const finalMatchIndex = updatedMatches.findIndex(
+            (m) => m.id === finalMatch.id
+          );
 
           if (finalMatchIndex !== -1) {
             // Update only the specific field (team2Id)
             updatedMatches[finalMatchIndex] = {
               ...updatedMatches[finalMatchIndex],
               ...updates,
-            }
+            };
 
             // Update local state
-            setLocalMatches(updatedMatches)
+            setLocalMatches(updatedMatches);
           }
 
           // Direct update to ensure persistence
-          updateMatchInTournament(tournament.id, finalMatch.id, updates)
+          await updateMatchInTournamentInDB(
+            tournament.id,
+            finalMatch.id,
+            updates
+          );
 
           // Call the parent's update function
-          onUpdateMatch(finalMatch.id, updates)
+          onUpdateMatch(finalMatch.id, updates);
         }
       }
     }
-  }
+  };
 
   // Handle match deletion
   const openDeleteMatchDialog = (match: Match) => {
-    if (!currentUser?.isAdmin) return
-    setMatchToDelete(match)
-    setIsDeleteDialogOpen(true)
-  }
+    if (!currentUser?.isAdmin) return;
+    setMatchToDelete(match);
+    setIsDeleteDialogOpen(true);
+  };
 
-  const handleDeleteMatch = () => {
-    if (!matchToDelete || !currentUser?.isAdmin) return
+  const handleDeleteMatch = async () => {
+    if (!matchToDelete || !currentUser?.isAdmin) return;
 
     try {
       // Delete the match from the tournament
-      deleteMatchFromTournament(tournament.id, matchToDelete.id)
+      await deleteMatchFromTournamentInDB(tournament.id, matchToDelete.id);
 
       // Update local state
-      setLocalMatches((prev) => prev.filter((m) => m.id !== matchToDelete.id))
+      setLocalMatches((prev) => prev.filter((m) => m.id !== matchToDelete.id));
 
       // Close the dialog
-      setIsDeleteDialogOpen(false)
+      setIsDeleteDialogOpen(false);
 
       // Show success toast
       toast({
         title: "Match Deleted",
         description: "The match has been successfully deleted.",
         variant: "success",
-      })
+      });
     } catch (error) {
-      console.error("Error deleting match:", error)
+      console.error("Error deleting match:", error);
       toast({
         title: "Error",
         description: "Failed to delete the match. Please try again.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   // Handle adding a new match
   const openAddMatchDialog = (round: number, poolId?: string) => {
-    if (!currentUser?.isAdmin) return
+    if (!currentUser?.isAdmin) return;
 
     // Find the next available position in the round
-    let nextPosition = 0
+    let nextPosition = 0;
     if (poolId) {
       // For pool matches
       const poolMatches = localMatches.filter(
-        (m) => m.poolId !== undefined && m.poolId.toString() === poolId && m.round === round,
-      )
-      nextPosition = poolMatches.length > 0 ? Math.max(...poolMatches.map((m) => m.position)) + 1 : 0
+        (m) =>
+          m.poolId !== undefined &&
+          m.poolId.toString() === poolId &&
+          m.round === round
+      );
+      nextPosition =
+        poolMatches.length > 0
+          ? Math.max(...poolMatches.map((m) => m.position)) + 1
+          : 0;
     } else if (round >= 100) {
       // For knockout matches
-      const knockoutMatches = localMatches.filter((m) => m.round === round)
-      nextPosition = knockoutMatches.length > 0 ? Math.max(...knockoutMatches.map((m) => m.position)) + 1 : 0
+      const knockoutMatches = localMatches.filter((m) => m.round === round);
+      nextPosition =
+        knockoutMatches.length > 0
+          ? Math.max(...knockoutMatches.map((m) => m.position)) + 1
+          : 0;
     } else {
       // For regular rounds
-      const roundMatches = localMatches.filter((m) => m.round === round)
-      nextPosition = roundMatches.length > 0 ? Math.max(...roundMatches.map((m) => m.position)) + 1 : 0
+      const roundMatches = localMatches.filter((m) => m.round === round);
+      nextPosition =
+        roundMatches.length > 0
+          ? Math.max(...roundMatches.map((m) => m.position)) + 1
+          : 0;
     }
 
-    setNewMatchRound(round)
-    setNewMatchPosition(nextPosition)
-    setNewMatchPoolId(poolId || "")
-    setNewMatchTeam1("")
-    setNewMatchTeam2("")
-    setNewMatchCourt("")
-    setNewMatchTime("")
-    setIsAddMatchDialogOpen(true)
-  }
+    setNewMatchRound(round);
+    setNewMatchPosition(nextPosition);
+    setNewMatchPoolId(poolId || "");
+    setNewMatchTeam1("");
+    setNewMatchTeam2("");
+    setNewMatchCourt("");
+    setNewMatchTime("");
+    setIsAddMatchDialogOpen(true);
+  };
 
-  const handleAddMatch = () => {
-    if (!currentUser?.isAdmin) return
+  const handleAddMatch = async () => {
+    if (!currentUser?.isAdmin) return;
 
     try {
       // Create a new match object
@@ -1366,70 +1577,74 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
         id: `match-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
         round: newMatchRound,
         position: newMatchPosition,
-        team1Id: newMatchTeam1 && newMatchTeam1 !== "none" ? newMatchTeam1 : null,
-        team2Id: newMatchTeam2 && newMatchTeam2 !== "none" ? newMatchTeam2 : null,
+        team1Id:
+          newMatchTeam1 && newMatchTeam1 !== "none" ? newMatchTeam1 : null,
+        team2Id:
+          newMatchTeam2 && newMatchTeam2 !== "none" ? newMatchTeam2 : null,
         winnerId: null,
         isBye: false,
         court: newMatchCourt || undefined,
         scheduledTime: newMatchTime || undefined,
         poolId: newMatchPoolId || undefined,
         bestOf: tournament.bestOf || 1,
-      }
+      };
 
       // Add the match to the tournament
-      addMatchToTournament(tournament.id, newMatch)
+      await addMatchToTournamentInDB(tournament.id, newMatch);
 
       // Update local state
-      setLocalMatches((prev) => [...prev, newMatch])
+      setLocalMatches((prev) => [...prev, newMatch]);
 
       // Close the dialog
-      setIsAddMatchDialogOpen(false)
+      setIsAddMatchDialogOpen(false);
 
       // Show success toast
       toast({
         title: "Match Added",
         description: "A new match has been successfully added.",
         variant: "success",
-      })
+      });
     } catch (error) {
-      console.error("Error adding match:", error)
+      console.error("Error adding match:", error);
       toast({
         title: "Error",
         description: "Failed to add the match. Please try again.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   // Display tournament winner banner if there is one
   const WinnerBanner = () => {
-    if (!tournamentWinner) return null
+    if (!tournamentWinner) return null;
 
     return (
       <div className="mb-8 p-6 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg text-center">
         <h3 className="text-xl font-semibold mb-2">Tournament Winner</h3>
-        <p className="text-3xl font-bold text-green-600 dark:text-green-400">{tournamentWinner.name}</p>
+        <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+          {tournamentWinner.name}
+        </p>
       </div>
-    )
-  }
+    );
+  };
 
   // Mobile navigation for rounds
   const handlePreviousRound = () => {
     if (activeRound > 0) {
-      setActiveRound(activeRound - 1)
+      setActiveRound(activeRound - 1);
     }
-  }
+  };
 
   const handleNextRound = () => {
     const maxRound =
       format === TournamentFormat.POOL_PLAY
         ? Math.max(...Object.keys(knockoutMatchesByRound).map(Number), 0)
-        : tournament.totalRounds - 1
+        : tournament.totalRounds - 1;
 
     if (activeRound < maxRound) {
-      setActiveRound(activeRound + 1)
+      setActiveRound(activeRound + 1);
     }
-  }
+  };
 
   // Render different bracket layouts based on format
   if (format === TournamentFormat.ROUND_ROBIN) {
@@ -1457,7 +1672,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                     <ChevronLeft className="h-4 w-4" />
                     Previous
                   </Button>
-                  <h3 className="text-xl font-semibold">Round {activeRound + 1}</h3>
+                  <h3 className="text-xl font-semibold">
+                    Round {activeRound + 1}
+                  </h3>
                   <Button
                     variant="outline"
                     onClick={handleNextRound}
@@ -1470,13 +1687,17 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                 </div>
                 <div className="space-y-4">
                   {(matchesByRound[activeRound] || []).map((match) => {
-                    const team1 = getTeam(match.team1Id)
-                    const team2 = getTeam(match.team2Id)
-                    const ready = isMatchReady(match)
-                    const completed = isMatchCompleted(match)
+                    const team1 = getTeam(match.team1Id);
+                    const team2 = getTeam(match.team2Id);
+                    const ready = isMatchReady(match);
+                    const completed = isMatchCompleted(match);
 
                     return (
-                      <div key={match.id} className="relative" data-match-id={match.id}>
+                      <div
+                        key={match.id}
+                        className="relative"
+                        data-match-id={match.id}
+                      >
                         {currentUser?.isAdmin && (
                           <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                             {!completed && (
@@ -1503,7 +1724,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                           match={match}
                           team1={team1}
                           team2={team2}
-                          onUpdateMatch={(matchId, updates) => handleUpdateMatch(matchId, updates)}
+                          onUpdateMatch={(matchId, updates) =>
+                            handleUpdateMatch(matchId, updates)
+                          }
                           ready={ready}
                           completed={completed}
                           currentUser={currentUser}
@@ -1513,7 +1736,7 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                           tournamentId={tournament.id}
                         />
                       </div>
-                    )
+                    );
                   })}
                   {currentUser?.isAdmin && (
                     <Button
@@ -1528,78 +1751,95 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto relative" ref={bracketContainerRef}>
+              <div
+                className="overflow-x-auto relative"
+                ref={bracketContainerRef}
+              >
                 <div className="flex space-x-6 min-w-max pb-6">
-                  {Array.from({ length: tournament.totalRounds }).map((_, roundIndex) => {
-                    const roundMatches = matchesByRound[roundIndex] || []
+                  {Array.from({ length: tournament.totalRounds }).map(
+                    (_, roundIndex) => {
+                      const roundMatches = matchesByRound[roundIndex] || [];
 
-                    return (
-                      <div key={roundIndex} className="flex-shrink-0 w-72">
-                        <div className="flex justify-between items-center mb-4">
-                          <h3 className="text-xl font-semibold">Round {roundIndex + 1}</h3>
-                          {currentUser?.isAdmin && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => openAddMatchDialog(roundIndex)}
-                              className="flex items-center gap-1"
-                            >
-                              <Plus className="h-4 w-4" />
-                              Add Match
-                            </Button>
-                          )}
-                        </div>
-                        <div className="space-y-4">
-                          {roundMatches.map((match) => {
-                            const team1 = getTeam(match.team1Id)
-                            const team2 = getTeam(match.team2Id)
-                            const ready = isMatchReady(match)
-                            const completed = isMatchCompleted(match)
+                      return (
+                        <div key={roundIndex} className="flex-shrink-0 w-72">
+                          <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-xl font-semibold">
+                              Round {roundIndex + 1}
+                            </h3>
+                            {currentUser?.isAdmin && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openAddMatchDialog(roundIndex)}
+                                className="flex items-center gap-1"
+                              >
+                                <Plus className="h-4 w-4" />
+                                Add Match
+                              </Button>
+                            )}
+                          </div>
+                          <div className="space-y-4">
+                            {roundMatches.map((match) => {
+                              const team1 = getTeam(match.team1Id);
+                              const team2 = getTeam(match.team2Id);
+                              const ready = isMatchReady(match);
+                              const completed = isMatchCompleted(match);
 
-                            return (
-                              <div key={match.id} className="relative" data-match-id={match.id}>
-                                {currentUser?.isAdmin && (
-                                  <div className="absolute -top-2 -right-2 z-10 flex gap-1">
-                                    {!completed && (
+                              return (
+                                <div
+                                  key={match.id}
+                                  className="relative"
+                                  data-match-id={match.id}
+                                >
+                                  {currentUser?.isAdmin && (
+                                    <div className="absolute -top-2 -right-2 z-10 flex gap-1">
+                                      {!completed && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="bg-white dark:bg-gray-800"
+                                          onClick={() =>
+                                            openAssignDialog(match)
+                                          }
+                                        >
+                                          Assign Teams
+                                        </Button>
+                                      )}
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className="bg-white dark:bg-gray-800"
-                                        onClick={() => openAssignDialog(match)}
+                                        className="bg-white dark:bg-gray-800 text-red-500 hover:text-red-700"
+                                        onClick={() =>
+                                          openDeleteMatchDialog(match)
+                                        }
                                       >
-                                        Assign Teams
+                                        <Trash2 className="h-4 w-4" />
                                       </Button>
-                                    )}
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="bg-white dark:bg-gray-800 text-red-500 hover:text-red-700"
-                                      onClick={() => openDeleteMatchDialog(match)}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                )}
-                                <MatchCard
-                                  match={match}
-                                  team1={team1}
-                                  team2={team2}
-                                  onUpdateMatch={(matchId, updates) => handleUpdateMatch(matchId, updates)}
-                                  ready={ready}
-                                  completed={completed}
-                                  currentUser={currentUser}
-                                  pointsToWin={tournament.pointsToWin}
-                                  winBy={tournament.winBy}
-                                  bestOf={match.bestOf || 1}
-                                  tournamentId={tournament.id}
-                                />
-                              </div>
-                            )
-                          })}
+                                    </div>
+                                  )}
+                                  <MatchCard
+                                    match={match}
+                                    team1={team1}
+                                    team2={team2}
+                                    onUpdateMatch={(matchId, updates) =>
+                                      handleUpdateMatch(matchId, updates)
+                                    }
+                                    ready={ready}
+                                    completed={completed}
+                                    currentUser={currentUser}
+                                    pointsToWin={tournament.pointsToWin}
+                                    winBy={tournament.winBy}
+                                    bestOf={match.bestOf || 1}
+                                    tournamentId={tournament.id}
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      );
+                    }
+                  )}
                 </div>
                 <BracketLines
                   matchesByRound={matchesByRound}
@@ -1612,7 +1852,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           </TabsContent>
 
           <TabsContent value="standings">
-            <StandingsTable tournament={tournament} forceUpdate={forceUpdateCounter} />
+            <StandingsTable
+              tournament={tournament}
+              forceUpdate={forceUpdateCounter}
+            />
           </TabsContent>
         </Tabs>
 
@@ -1621,16 +1864,24 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Assign Teams to Match</DialogTitle>
-              <DialogDescription>Select teams to assign to this match</DialogDescription>
+              <DialogDescription>
+                Select teams to assign to this match
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="space-y-2">
                 <Label htmlFor="team1">Team 1</Label>
-                <Select value={team1Selection} onValueChange={setTeam1Selection}>
+                <Select
+                  value={team1Selection}
+                  onValueChange={setTeam1Selection}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select team" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                  <SelectContent
+                    className="max-h-[200px] overflow-y-auto"
+                    position="popper"
+                  >
                     <div className="overflow-y-auto max-h-[200px] pr-2">
                       <SelectItem value="none">None</SelectItem>
                       {teams.map((team) => (
@@ -1644,11 +1895,17 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
               </div>
               <div className="space-y-2">
                 <Label htmlFor="team2">Team 2</Label>
-                <Select value={team2Selection} onValueChange={setTeam2Selection}>
+                <Select
+                  value={team2Selection}
+                  onValueChange={setTeam2Selection}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select team" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                  <SelectContent
+                    className="max-h-[200px] overflow-y-auto"
+                    position="popper"
+                  >
                     <div className="overflow-y-auto max-h-[200px] pr-2">
                       <SelectItem value="none">None</SelectItem>
                       {teams.map((team) => (
@@ -1662,7 +1919,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsAssignDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button onClick={handleSaveTeamAssignment}>Save</Button>
@@ -1676,11 +1936,15 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
             <DialogHeader>
               <DialogTitle>Delete Match</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete this match? This action cannot be undone.
+                Are you sure you want to delete this match? This action cannot
+                be undone.
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-end gap-2 pt-4 max-h-[60vh] overflow-y-auto">
-              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button variant="destructive" onClick={handleDeleteMatch}>
@@ -1691,11 +1955,16 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
         </Dialog>
 
         {/* Add Match Dialog */}
-        <Dialog open={isAddMatchDialogOpen} onOpenChange={setIsAddMatchDialogOpen}>
+        <Dialog
+          open={isAddMatchDialogOpen}
+          onOpenChange={setIsAddMatchDialogOpen}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Match</DialogTitle>
-              <DialogDescription>Enter the details for the new match</DialogDescription>
+              <DialogDescription>
+                Enter the details for the new match
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid grid-cols-2 gap-4">
@@ -1715,7 +1984,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                     id="position"
                     type="number"
                     value={newMatchPosition}
-                    onChange={(e) => setNewMatchPosition(Number(e.target.value))}
+                    onChange={(e) =>
+                      setNewMatchPosition(Number(e.target.value))
+                    }
                     min="0"
                   />
                 </div>
@@ -1726,7 +1997,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                   <SelectTrigger>
                     <SelectValue placeholder="Select team (optional)" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                  <SelectContent
+                    className="max-h-[200px] overflow-y-auto"
+                    position="popper"
+                  >
                     <div className="overflow-y-auto max-h-[200px] pr-2">
                       <SelectItem value="none">None</SelectItem>
                       {teams.map((team) => (
@@ -1744,7 +2018,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                   <SelectTrigger>
                     <SelectValue placeholder="Select team (optional)" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                  <SelectContent
+                    className="max-h-[200px] overflow-y-auto"
+                    position="popper"
+                  >
                     <div className="overflow-y-auto max-h-[200px] pr-2">
                       <SelectItem value="none">None</SelectItem>
                       {teams.map((team) => (
@@ -1776,7 +2053,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsAddMatchDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsAddMatchDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button onClick={handleAddMatch}>Add Match</Button>
@@ -1784,7 +2064,7 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           </DialogContent>
         </Dialog>
       </div>
-    )
+    );
   }
 
   // Pool Play Format
@@ -1824,7 +2104,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                     key={`active-pool-${activePool}-${forceUpdateCounter}`}
                     tournament={{
                       ...tournament,
-                      teams: pools?.find((p) => p.id.toString() === activePool)?.teams || [],
+                      teams:
+                        pools?.find((p) => p.id.toString() === activePool)
+                          ?.teams || [],
                     }}
                     standings={poolStandings[activePool]}
                     onToggleQualification={handleToggleQualification}
@@ -1852,13 +2134,23 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                       <ChevronLeft className="h-4 w-4" />
                       Previous
                     </Button>
-                    <h3 className="text-xl font-semibold">Round {activeRound + 1}</h3>
+                    <h3 className="text-xl font-semibold">
+                      Round {activeRound + 1}
+                    </h3>
                     <Button
                       variant="outline"
                       onClick={handleNextRound}
                       disabled={
                         activeRound ===
-                        Math.max(...Array.from(new Set(matchesByPool[activePool]?.map((match) => match.round) || [0])))
+                        Math.max(
+                          ...Array.from(
+                            new Set(
+                              matchesByPool[activePool]?.map(
+                                (match) => match.round
+                              ) || [0]
+                            )
+                          )
+                        )
                       }
                       className="flex items-center gap-1"
                     >
@@ -1867,14 +2159,22 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                     </Button>
                   </div>
                   <div className="space-y-4">
-                    {(matchesByPool[activePool]?.filter((match) => match.round === activeRound) || []).map((match) => {
-                      const team1 = getTeam(match.team1Id)
-                      const team2 = getTeam(match.team2Id)
-                      const ready = isMatchReady(match)
-                      const completed = isMatchCompleted(match)
+                    {(
+                      matchesByPool[activePool]?.filter(
+                        (match) => match.round === activeRound
+                      ) || []
+                    ).map((match) => {
+                      const team1 = getTeam(match.team1Id);
+                      const team2 = getTeam(match.team2Id);
+                      const ready = isMatchReady(match);
+                      const completed = isMatchCompleted(match);
 
                       return (
-                        <div key={match.id} className="relative" data-match-id={match.id}>
+                        <div
+                          key={match.id}
+                          className="relative"
+                          data-match-id={match.id}
+                        >
                           {currentUser?.isAdmin && (
                             <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                               {!completed && (
@@ -1901,7 +2201,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                             match={match}
                             team1={team1}
                             team2={team2}
-                            onUpdateMatch={(matchId, updates) => handleUpdateMatch(matchId, updates)}
+                            onUpdateMatch={(matchId, updates) =>
+                              handleUpdateMatch(matchId, updates)
+                            }
                             ready={ready}
                             completed={completed}
                             currentUser={currentUser}
@@ -1911,12 +2213,14 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                             tournamentId={tournament.id}
                           />
                         </div>
-                      )
+                      );
                     })}
                     {currentUser?.isAdmin && (
                       <Button
                         variant="outline"
-                        onClick={() => openAddMatchDialog(activeRound, activePool)}
+                        onClick={() =>
+                          openAddMatchDialog(activeRound, activePool)
+                        }
                         className="w-full flex items-center justify-center gap-1 mt-4"
                       >
                         <Plus className="h-4 w-4" />
@@ -1926,24 +2230,39 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                   </div>
                 </div>
               ) : (
-                <div className="overflow-x-auto relative" ref={bracketContainerRef}>
+                <div
+                  className="overflow-x-auto relative"
+                  ref={bracketContainerRef}
+                >
                   <div className="flex space-x-6 min-w-max pb-6">
                     {/* Only show rounds that have matches */}
-                    {Array.from(new Set(matchesByPool[activePool]?.map((match) => match.round) || []))
+                    {Array.from(
+                      new Set(
+                        matchesByPool[activePool]?.map(
+                          (match) => match.round
+                        ) || []
+                      )
+                    )
                       .sort((a, b) => a - b)
                       .map((roundIndex) => {
                         const roundMatches =
-                          matchesByPool[activePool]?.filter((match) => match.round === roundIndex) || []
+                          matchesByPool[activePool]?.filter(
+                            (match) => match.round === roundIndex
+                          ) || [];
 
                         return (
                           <div key={roundIndex} className="flex-shrink-0 w-72">
                             <div className="flex justify-between items-center mb-4">
-                              <h3 className="text-xl font-semibold">Round {roundIndex + 1}</h3>
+                              <h3 className="text-xl font-semibold">
+                                Round {roundIndex + 1}
+                              </h3>
                               {currentUser?.isAdmin && (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => openAddMatchDialog(roundIndex, activePool)}
+                                  onClick={() =>
+                                    openAddMatchDialog(roundIndex, activePool)
+                                  }
                                   className="flex items-center gap-1"
                                 >
                                   <Plus className="h-4 w-4" />
@@ -1953,13 +2272,17 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                             </div>
                             <div className="space-y-4">
                               {roundMatches.map((match) => {
-                                const team1 = getTeam(match.team1Id)
-                                const team2 = getTeam(match.team2Id)
-                                const ready = isMatchReady(match)
-                                const completed = isMatchCompleted(match)
+                                const team1 = getTeam(match.team1Id);
+                                const team2 = getTeam(match.team2Id);
+                                const ready = isMatchReady(match);
+                                const completed = isMatchCompleted(match);
 
                                 return (
-                                  <div key={match.id} className="relative" data-match-id={match.id}>
+                                  <div
+                                    key={match.id}
+                                    className="relative"
+                                    data-match-id={match.id}
+                                  >
                                     {currentUser?.isAdmin && (
                                       <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                                         {!completed && (
@@ -1967,7 +2290,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                                             variant="outline"
                                             size="sm"
                                             className="bg-white dark:bg-gray-800"
-                                            onClick={() => openAssignDialog(match)}
+                                            onClick={() =>
+                                              openAssignDialog(match)
+                                            }
                                           >
                                             Assign Teams
                                           </Button>
@@ -1976,7 +2301,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                                           variant="outline"
                                           size="sm"
                                           className="bg-white dark:bg-gray-800 text-red-500 hover:text-red-700"
-                                          onClick={() => openDeleteMatchDialog(match)}
+                                          onClick={() =>
+                                            openDeleteMatchDialog(match)
+                                          }
                                         >
                                           <Trash2 className="h-4 w-4" />
                                         </Button>
@@ -1986,7 +2313,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                                       match={match}
                                       team1={team1}
                                       team2={team2}
-                                      onUpdateMatch={(matchId, updates) => handleUpdateMatch(matchId, updates)}
+                                      onUpdateMatch={(matchId, updates) =>
+                                        handleUpdateMatch(matchId, updates)
+                                      }
                                       ready={ready}
                                       completed={completed}
                                       currentUser={currentUser}
@@ -1996,11 +2325,11 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                                       tournamentId={tournament.id}
                                     />
                                   </div>
-                                )
+                                );
                               })}
                             </div>
                           </div>
-                        )
+                        );
                       })}
 
                     {/* Add Round button for admins */}
@@ -2013,9 +2342,15 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                               const nextRound =
                                 Math.max(
                                   0,
-                                  ...Array.from(new Set(matchesByPool[activePool]?.map((match) => match.round) || [0])),
-                                ) + 1
-                              openAddMatchDialog(nextRound, activePool)
+                                  ...Array.from(
+                                    new Set(
+                                      matchesByPool[activePool]?.map(
+                                        (match) => match.round
+                                      ) || [0]
+                                    )
+                                  )
+                                ) + 1;
+                              openAddMatchDialog(nextRound, activePool);
                             }}
                             className="flex items-center gap-1"
                           >
@@ -2028,19 +2363,23 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                   </div>
                   <BracketLines
                     matchesByRound={
-                      matchesByPool[activePool]?.reduce(
-                        (acc, match) => {
-                          const round = match.round
-                          if (!acc[round]) acc[round] = []
-                          acc[round].push(match)
-                          return acc
-                        },
-                        {} as Record<number, Match[]>,
-                      ) || {}
+                      matchesByPool[activePool]?.reduce((acc, match) => {
+                        const round = match.round;
+                        if (!acc[round]) acc[round] = [];
+                        acc[round].push(match);
+                        return acc;
+                      }, {} as Record<number, Match[]>) || {}
                     }
                     totalRounds={
-                      Math.max(...Array.from(new Set(matchesByPool[activePool]?.map((match) => match.round) || [0]))) +
-                      1
+                      Math.max(
+                        ...Array.from(
+                          new Set(
+                            matchesByPool[activePool]?.map(
+                              (match) => match.round
+                            ) || [0]
+                          )
+                        )
+                      ) + 1
                     }
                     format={format}
                     containerRef={bracketContainerRef}
@@ -2051,26 +2390,29 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
 
           <TabsContent value="knockout" className="space-y-8">
             {/* Populate Bracket Button */}
-            {currentUser?.isAdmin && areAllPoolMatchesCompleted && qualifiedTeams.length > 0 && (
-              <div className="mb-8">
-                <Button
-                  onClick={populateKnockoutBracket}
-                  disabled={isPopulatingBracket || isKnockoutBracketPopulated}
-                  className="mb-4"
-                >
-                  {isPopulatingBracket
-                    ? "Populating Bracket..."
-                    : isKnockoutBracketPopulated
+            {currentUser?.isAdmin &&
+              areAllPoolMatchesCompleted &&
+              qualifiedTeams.length > 0 && (
+                <div className="mb-8">
+                  <Button
+                    onClick={populateKnockoutBracket}
+                    disabled={isPopulatingBracket || isKnockoutBracketPopulated}
+                    className="mb-4"
+                  >
+                    {isPopulatingBracket
+                      ? "Populating Bracket..."
+                      : isKnockoutBracketPopulated
                       ? "Bracket Populated"
                       : "Populate Knockout Bracket"}
-                </Button>
-                {!areAllPoolMatchesCompleted && (
-                  <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                    All pool matches must be completed before populating the knockout bracket.
-                  </p>
-                )}
-              </div>
-            )}
+                  </Button>
+                  {!areAllPoolMatchesCompleted && (
+                    <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                      All pool matches must be completed before populating the
+                      knockout bracket.
+                    </p>
+                  )}
+                </div>
+              )}
             {/* Qualified Teams Section */}
             <div className="mb-8">
               <h3 className="text-xl font-semibold mb-4">Qualified Teams</h3>
@@ -2087,7 +2429,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                       </p>
                     </div>
                     <div className="h-8 w-8 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                      <span className="font-semibold text-green-800 dark:text-green-300">{position}</span>
+                      <span className="font-semibold text-green-800 dark:text-green-300">
+                        {position}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -2126,7 +2470,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                     variant="outline"
                     onClick={handlePreviousRound}
                     disabled={
-                      activeRound < 100 || !Object.keys(knockoutMatchesByRound).includes(activeRound.toString())
+                      activeRound < 100 ||
+                      !Object.keys(knockoutMatchesByRound).includes(
+                        activeRound.toString()
+                      )
                     }
                     className="flex items-center gap-1"
                   >
@@ -2134,12 +2481,18 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                     Previous
                   </Button>
                   <h3 className="text-xl font-semibold">
-                    {activeRound >= 100 ? `Knockout Round ${activeRound - 99}` : "Select Round"}
+                    {activeRound >= 100
+                      ? `Knockout Round ${activeRound - 99}`
+                      : "Select Round"}
                   </h3>
                   <Button
                     variant="outline"
                     onClick={handleNextRound}
-                    disabled={!Object.keys(knockoutMatchesByRound).includes((activeRound + 1).toString())}
+                    disabled={
+                      !Object.keys(knockoutMatchesByRound).includes(
+                        (activeRound + 1).toString()
+                      )
+                    }
                     className="flex items-center gap-1"
                   >
                     Next
@@ -2148,13 +2501,17 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                 </div>
                 <div className="space-y-4">
                   {(knockoutMatchesByRound[activeRound] || []).map((match) => {
-                    const team1 = getTeam(match.team1Id)
-                    const team2 = getTeam(match.team2Id)
-                    const ready = isMatchReady(match)
-                    const completed = isMatchCompleted(match)
+                    const team1 = getTeam(match.team1Id);
+                    const team2 = getTeam(match.team2Id);
+                    const ready = isMatchReady(match);
+                    const completed = isMatchCompleted(match);
 
                     return (
-                      <div key={match.id} className="relative" data-match-id={match.id}>
+                      <div
+                        key={match.id}
+                        className="relative"
+                        data-match-id={match.id}
+                      >
                         {currentUser?.isAdmin && (
                           <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                             {!completed && (
@@ -2181,7 +2538,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                           match={match}
                           team1={team1}
                           team2={team2}
-                          onUpdateMatch={(matchId, updates) => handleUpdateMatch(matchId, updates)}
+                          onUpdateMatch={(matchId, updates) =>
+                            handleUpdateMatch(matchId, updates)
+                          }
                           ready={ready}
                           completed={completed}
                           currentUser={currentUser}
@@ -2191,7 +2550,7 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                           tournamentId={tournament.id}
                         />
                       </div>
-                    )
+                    );
                   })}
                   {currentUser?.isAdmin && activeRound >= 100 && (
                     <Button
@@ -2221,18 +2580,23 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto relative" ref={bracketContainerRef}>
+              <div
+                className="overflow-x-auto relative"
+                ref={bracketContainerRef}
+              >
                 <div className="flex space-x-6 min-w-max pb-6">
                   {Object.keys(knockoutMatchesByRound)
                     .sort((a, b) => Number.parseInt(a) - Number.parseInt(b))
                     .map((roundKey) => {
-                      const round = Number.parseInt(roundKey)
-                      const roundMatches = knockoutMatchesByRound[round] || []
+                      const round = Number.parseInt(roundKey);
+                      const roundMatches = knockoutMatchesByRound[round] || [];
 
                       return (
                         <div key={round} className="flex-shrink-0 w-72">
                           <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-semibold">Knockout Round {round - 99}</h3>
+                            <h3 className="text-xl font-semibold">
+                              Knockout Round {round - 99}
+                            </h3>
                             {currentUser?.isAdmin && (
                               <Button
                                 size="sm"
@@ -2247,13 +2611,17 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                           </div>
                           <div className="space-y-4">
                             {roundMatches.map((match) => {
-                              const team1 = getTeam(match.team1Id)
-                              const team2 = getTeam(match.team2Id)
-                              const ready = isMatchReady(match)
-                              const completed = isMatchCompleted(match)
+                              const team1 = getTeam(match.team1Id);
+                              const team2 = getTeam(match.team2Id);
+                              const ready = isMatchReady(match);
+                              const completed = isMatchCompleted(match);
 
                               return (
-                                <div key={match.id} className="relative" data-match-id={match.id}>
+                                <div
+                                  key={match.id}
+                                  className="relative"
+                                  data-match-id={match.id}
+                                >
                                   {currentUser?.isAdmin && (
                                     <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                                       {!completed && (
@@ -2261,7 +2629,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                                           variant="outline"
                                           size="sm"
                                           className="bg-white dark:bg-gray-800"
-                                          onClick={() => openAssignDialog(match)}
+                                          onClick={() =>
+                                            openAssignDialog(match)
+                                          }
                                         >
                                           Assign Teams
                                         </Button>
@@ -2270,7 +2640,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                                         variant="outline"
                                         size="sm"
                                         className="bg-white dark:bg-gray-800 text-red-500 hover:text-red-700"
-                                        onClick={() => openDeleteMatchDialog(match)}
+                                        onClick={() =>
+                                          openDeleteMatchDialog(match)
+                                        }
                                       >
                                         <Trash2 className="h-4 w-4" />
                                       </Button>
@@ -2280,7 +2652,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                                     match={match}
                                     team1={team1}
                                     team2={team2}
-                                    onUpdateMatch={(matchId, updates) => handleUpdateMatch(matchId, updates)}
+                                    onUpdateMatch={(matchId, updates) =>
+                                      handleUpdateMatch(matchId, updates)
+                                    }
                                     ready={ready}
                                     completed={completed}
                                     currentUser={currentUser}
@@ -2290,11 +2664,11 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                                     tournamentId={tournament.id}
                                   />
                                 </div>
-                              )
+                              );
                             })}
                           </div>
                         </div>
-                      )
+                      );
                     })}
 
                   {/* Add Round button for admins */}
@@ -2304,9 +2678,14 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                         <Button
                           variant="outline"
                           onClick={() => {
-                            const existingRounds = Object.keys(knockoutMatchesByRound).map((r) => Number(r))
-                            const nextRound = existingRounds.length > 0 ? Math.max(...existingRounds) + 1 : 100
-                            openAddMatchDialog(nextRound)
+                            const existingRounds = Object.keys(
+                              knockoutMatchesByRound
+                            ).map((r) => Number(r));
+                            const nextRound =
+                              existingRounds.length > 0
+                                ? Math.max(...existingRounds) + 1
+                                : 100;
+                            openAddMatchDialog(nextRound);
                           }}
                           className="flex items-center gap-1"
                         >
@@ -2333,16 +2712,24 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Assign Teams to Match</DialogTitle>
-              <DialogDescription>Select teams to assign to this match</DialogDescription>
+              <DialogDescription>
+                Select teams to assign to this match
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="space-y-2">
                 <Label htmlFor="team1">Team 1</Label>
-                <Select value={team1Selection} onValueChange={setTeam1Selection}>
+                <Select
+                  value={team1Selection}
+                  onValueChange={setTeam1Selection}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select team" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                  <SelectContent
+                    className="max-h-[200px] overflow-y-auto"
+                    position="popper"
+                  >
                     <div className="overflow-y-auto max-h-[200px] pr-2">
                       <SelectItem value="none">None</SelectItem>
                       {teams.map((team) => (
@@ -2356,11 +2743,17 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
               </div>
               <div className="space-y-2">
                 <Label htmlFor="team2">Team 2</Label>
-                <Select value={team2Selection} onValueChange={setTeam2Selection}>
+                <Select
+                  value={team2Selection}
+                  onValueChange={setTeam2Selection}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select team" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                  <SelectContent
+                    className="max-h-[200px] overflow-y-auto"
+                    position="popper"
+                  >
                     <div className="overflow-y-auto max-h-[200px] pr-2">
                       <SelectItem value="none">None</SelectItem>
                       {teams.map((team) => (
@@ -2374,7 +2767,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsAssignDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button onClick={handleSaveTeamAssignment}>Save</Button>
@@ -2388,11 +2784,15 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
             <DialogHeader>
               <DialogTitle>Delete Match</DialogTitle>
               <DialogDescription>
-                Are you sure you want to delete this match? This action cannot be undone.
+                Are you sure you want to delete this match? This action cannot
+                be undone.
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-end gap-2 pt-4 max-h-[60vh] overflow-y-auto">
-              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button variant="destructive" onClick={handleDeleteMatch}>
@@ -2403,11 +2803,16 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
         </Dialog>
 
         {/* Add Match Dialog */}
-        <Dialog open={isAddMatchDialogOpen} onOpenChange={setIsAddMatchDialogOpen}>
+        <Dialog
+          open={isAddMatchDialogOpen}
+          onOpenChange={setIsAddMatchDialogOpen}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Match</DialogTitle>
-              <DialogDescription>Enter the details for the new match</DialogDescription>
+              <DialogDescription>
+                Enter the details for the new match
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid grid-cols-2 gap-4">
@@ -2427,7 +2832,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                     id="position"
                     type="number"
                     value={newMatchPosition}
-                    onChange={(e) => setNewMatchPosition(Number(e.target.value))}
+                    onChange={(e) =>
+                      setNewMatchPosition(Number(e.target.value))
+                    }
                     min="0"
                   />
                 </div>
@@ -2438,7 +2845,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                   <SelectTrigger>
                     <SelectValue placeholder="Select team (optional)" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                  <SelectContent
+                    className="max-h-[200px] overflow-y-auto"
+                    position="popper"
+                  >
                     <div className="overflow-y-auto max-h-[200px] pr-2">
                       <SelectItem value="none">None</SelectItem>
                       {teams.map((team) => (
@@ -2456,7 +2866,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                   <SelectTrigger>
                     <SelectValue placeholder="Select team (optional)" />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                  <SelectContent
+                    className="max-h-[200px] overflow-y-auto"
+                    position="popper"
+                  >
                     <div className="overflow-y-auto max-h-[200px] pr-2">
                       <SelectItem value="none">None</SelectItem>
                       {teams.map((team) => (
@@ -2488,7 +2901,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
               </div>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsAddMatchDialogOpen(false)}>
+              <Button
+                variant="outline"
+                onClick={() => setIsAddMatchDialogOpen(false)}
+              >
                 Cancel
               </Button>
               <Button onClick={handleAddMatch}>Add Match</Button>
@@ -2496,7 +2912,7 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           </DialogContent>
         </Dialog>
       </div>
-    )
+    );
   }
 
   // Single Elimination Format (default)
@@ -2517,7 +2933,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
               <ChevronLeft className="h-4 w-4" />
               Previous
             </Button>
-            <h3 className="text-xl font-semibold">{roundNames[activeRound] || `Round ${activeRound + 1}`}</h3>
+            <h3 className="text-xl font-semibold">
+              {roundNames[activeRound] || `Round ${activeRound + 1}`}
+            </h3>
             <Button
               variant="outline"
               onClick={handleNextRound}
@@ -2530,13 +2948,17 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           </div>
           <div className="space-y-4">
             {(matchesByRound[activeRound] || []).map((match) => {
-              const team1 = getTeam(match.team1Id)
-              const team2 = getTeam(match.team2Id)
-              const ready = isMatchReady(match)
-              const completed = isMatchCompleted(match)
+              const team1 = getTeam(match.team1Id);
+              const team2 = getTeam(match.team2Id);
+              const ready = isMatchReady(match);
+              const completed = isMatchCompleted(match);
 
               return (
-                <div key={match.id} className="relative" data-match-id={match.id}>
+                <div
+                  key={match.id}
+                  className="relative"
+                  data-match-id={match.id}
+                >
                   {currentUser?.isAdmin && (
                     <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                       {!completed && (
@@ -2563,7 +2985,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                     match={match}
                     team1={team1}
                     team2={team2}
-                    onUpdateMatch={(matchId, updates) => handleUpdateMatch(matchId, updates)}
+                    onUpdateMatch={(matchId, updates) =>
+                      handleUpdateMatch(matchId, updates)
+                    }
                     ready={ready}
                     completed={completed}
                     currentUser={currentUser}
@@ -2573,7 +2997,7 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                     tournamentId={tournament.id}
                   />
                 </div>
-              )
+              );
             })}
             {currentUser?.isAdmin && (
               <Button
@@ -2590,77 +3014,86 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
       ) : (
         <div className="overflow-x-auto relative" ref={bracketContainerRef}>
           <div className="flex space-x-6 min-w-max pb-6">
-            {Array.from({ length: tournament.totalRounds }).map((_, roundIndex) => {
-              const roundMatches = matchesByRound[roundIndex] || []
-              const roundName = roundNames[roundIndex] || `Round ${roundIndex + 1}`
+            {Array.from({ length: tournament.totalRounds }).map(
+              (_, roundIndex) => {
+                const roundMatches = matchesByRound[roundIndex] || [];
+                const roundName =
+                  roundNames[roundIndex] || `Round ${roundIndex + 1}`;
 
-              return (
-                <div key={roundIndex} className="flex-shrink-0 w-72">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-semibold">{roundName}</h3>
-                    {currentUser?.isAdmin && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openAddMatchDialog(roundIndex)}
-                        className="flex items-center gap-1"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add Match
-                      </Button>
-                    )}
-                  </div>
-                  <div className="space-y-4">
-                    {roundMatches.map((match) => {
-                      const team1 = getTeam(match.team1Id)
-                      const team2 = getTeam(match.team2Id)
-                      const ready = isMatchReady(match)
-                      const completed = isMatchCompleted(match)
+                return (
+                  <div key={roundIndex} className="flex-shrink-0 w-72">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold">{roundName}</h3>
+                      {currentUser?.isAdmin && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => openAddMatchDialog(roundIndex)}
+                          className="flex items-center gap-1"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Match
+                        </Button>
+                      )}
+                    </div>
+                    <div className="space-y-4">
+                      {roundMatches.map((match) => {
+                        const team1 = getTeam(match.team1Id);
+                        const team2 = getTeam(match.team2Id);
+                        const ready = isMatchReady(match);
+                        const completed = isMatchCompleted(match);
 
-                      return (
-                        <div key={match.id} className="relative" data-match-id={match.id}>
-                          {currentUser?.isAdmin && (
-                            <div className="absolute -top-2 -right-2 z-10 flex gap-1">
-                              {!completed && (
+                        return (
+                          <div
+                            key={match.id}
+                            className="relative"
+                            data-match-id={match.id}
+                          >
+                            {currentUser?.isAdmin && (
+                              <div className="absolute -top-2 -right-2 z-10 flex gap-1">
+                                {!completed && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="bg-white dark:bg-gray-800"
+                                    onClick={() => openAssignDialog(match)}
+                                  >
+                                    Assign Teams
+                                  </Button>
+                                )}
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="bg-white dark:bg-gray-800"
-                                  onClick={() => openAssignDialog(match)}
+                                  className="bg-white dark:bg-gray-800 text-red-500 hover:text-red-700"
+                                  onClick={() => openDeleteMatchDialog(match)}
                                 >
-                                  Assign Teams
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="bg-white dark:bg-gray-800 text-red-500 hover:text-red-700"
-                                onClick={() => openDeleteMatchDialog(match)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
-                          <MatchCard
-                            match={match}
-                            team1={team1}
-                            team2={team2}
-                            onUpdateMatch={(matchId, updates) => handleUpdateMatch(matchId, updates)}
-                            ready={ready}
-                            completed={completed}
-                            currentUser={currentUser}
-                            pointsToWin={tournament.pointsToWin}
-                            winBy={tournament.winBy}
-                            bestOf={match.bestOf || 1}
-                            tournamentId={tournament.id}
-                          />
-                        </div>
-                      )
-                    })}
+                              </div>
+                            )}
+                            <MatchCard
+                              match={match}
+                              team1={team1}
+                              team2={team2}
+                              onUpdateMatch={(matchId, updates) =>
+                                handleUpdateMatch(matchId, updates)
+                              }
+                              ready={ready}
+                              completed={completed}
+                              currentUser={currentUser}
+                              pointsToWin={tournament.pointsToWin}
+                              winBy={tournament.winBy}
+                              bestOf={match.bestOf || 1}
+                              tournamentId={tournament.id}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
+                );
+              }
+            )}
           </div>
           <BracketLines
             matchesByRound={matchesByRound}
@@ -2676,7 +3109,9 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Assign Teams to Match</DialogTitle>
-            <DialogDescription>Select teams to assign to this match</DialogDescription>
+            <DialogDescription>
+              Select teams to assign to this match
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
             <div className="space-y-2">
@@ -2685,7 +3120,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                 <SelectTrigger>
                   <SelectValue placeholder="Select team" />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                <SelectContent
+                  className="max-h-[200px] overflow-y-auto"
+                  position="popper"
+                >
                   <div className="overflow-y-auto max-h-[200px] pr-2">
                     <SelectItem value="none">None</SelectItem>
                     {teams.map((team) => (
@@ -2703,7 +3141,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                 <SelectTrigger>
                   <SelectValue placeholder="Select team" />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                <SelectContent
+                  className="max-h-[200px] overflow-y-auto"
+                  position="popper"
+                >
                   <div className="overflow-y-auto max-h-[200px] pr-2">
                     <SelectItem value="none">None</SelectItem>
                     {teams.map((team) => (
@@ -2717,7 +3158,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsAssignDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleSaveTeamAssignment}>Save</Button>
@@ -2731,11 +3175,15 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
           <DialogHeader>
             <DialogTitle>Delete Match</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this match? This action cannot be undone.
+              Are you sure you want to delete this match? This action cannot be
+              undone.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 pt-4 max-h-[60vh] overflow-y-auto">
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDeleteMatch}>
@@ -2746,11 +3194,16 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
       </Dialog>
 
       {/* Add Match Dialog */}
-      <Dialog open={isAddMatchDialogOpen} onOpenChange={setIsAddMatchDialogOpen}>
+      <Dialog
+        open={isAddMatchDialogOpen}
+        onOpenChange={setIsAddMatchDialogOpen}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add New Match</DialogTitle>
-            <DialogDescription>Enter the details for the new match</DialogDescription>
+            <DialogDescription>
+              Enter the details for the new match
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
             <div className="grid grid-cols-2 gap-4">
@@ -2781,7 +3234,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                 <SelectTrigger>
                   <SelectValue placeholder="Select team (optional)" />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                <SelectContent
+                  className="max-h-[200px] overflow-y-auto"
+                  position="popper"
+                >
                   <div className="overflow-y-auto max-h-[200px] pr-2">
                     <SelectItem value="none">None</SelectItem>
                     {teams.map((team) => (
@@ -2799,7 +3255,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
                 <SelectTrigger>
                   <SelectValue placeholder="Select team (optional)" />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px] overflow-y-auto" position="popper">
+                <SelectContent
+                  className="max-h-[200px] overflow-y-auto"
+                  position="popper"
+                >
                   <div className="overflow-y-auto max-h-[200px] pr-2">
                     <SelectItem value="none">None</SelectItem>
                     {teams.map((team) => (
@@ -2831,7 +3290,10 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsAddMatchDialogOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddMatchDialogOpen(false)}
+            >
               Cancel
             </Button>
             <Button onClick={handleAddMatch}>Add Match</Button>
@@ -2839,5 +3301,5 @@ export default function TournamentBracket({ tournament, onUpdateMatch, currentUs
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

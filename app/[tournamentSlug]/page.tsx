@@ -1,84 +1,108 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth"
-import { getAllTournaments, updateTournament } from "@/lib/tournament-store"
-import { type User, type Tournament, TournamentFormat } from "@/lib/types"
-import { ArrowLeft, Calendar, Users, MapPin, Edit, ChevronRight, Play, AlertCircle } from "lucide-react"
-import TeamRegistrationForm from "@/components/team-registration-form"
-import { generateBracket } from "@/lib/bracket-utils"
-import Image from "next/image"
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth";
+import {
+  getTournamentsFromDB,
+  updateTournamentInDB,
+} from "@/lib/tournament-store";
+import { type User, type Tournament, TournamentFormat } from "@/lib/types";
+import {
+  ArrowLeft,
+  Calendar,
+  Users,
+  MapPin,
+  Edit,
+  ChevronRight,
+  Play,
+  AlertCircle,
+} from "lucide-react";
+import TeamRegistrationForm from "@/components/team-registration-form";
+import { generateBracket } from "@/lib/bracket-utils";
+import Image from "next/image";
 
 export default function TournamentDetailsPage() {
-  const router = useRouter()
-  const params = useParams()
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [tournament, setTournament] = useState<Tournament | null>(null)
-  const [showRegistrationForm, setShowRegistrationForm] = useState(false)
-  const [startingTournament, setStartingTournament] = useState(false)
+  const router = useRouter();
+  const params = useParams();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [showRegistrationForm, setShowRegistrationForm] = useState(false);
+  const [startingTournament, setStartingTournament] = useState(false);
 
   // Load user and tournament from localStorage on initial render
   useEffect(() => {
-    const user = getStoredUser()
-    if (user) {
-      setCurrentUser(user)
-    }
-
-    // Load tournaments from localStorage
-    loadTournamentsFromLocalStorage()
-
-    // Find tournament by slug
-    const slug = params?.tournamentSlug as string
-    if (slug) {
-      const allTournaments = getAllTournaments()
-      const foundTournament = allTournaments.find((t) => t.slug === slug || createSlug(t.name) === slug)
-
-      if (foundTournament) {
-        setTournament(foundTournament)
-      } else {
-        // Tournament not found, redirect to tournaments list
-        router.push("/tournaments")
+    const fetchTournament = async () => {
+      const user = getStoredUser();
+      if (user) {
+        setCurrentUser(user);
       }
-    }
-  }, [params, router])
+
+      // Load tournaments from localStorage
+      loadTournamentsFromLocalStorage();
+
+      // Find tournament by slug
+      const slug = params?.tournamentSlug as string;
+      if (slug) {
+        const allTournaments = await getTournamentsFromDB();
+        const foundTournament = allTournaments.find(
+          (t) => t.slug === slug || createSlug(t.name) === slug
+        );
+
+        if (foundTournament) {
+          setTournament(foundTournament);
+        } else {
+          // Tournament not found, redirect to tournaments list
+          router.push("/tournaments");
+        }
+      }
+    };
+
+    fetchTournament();
+  }, [params, router]);
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString()
-  }
+    return new Date(timestamp).toLocaleDateString();
+  };
 
   const getFormatLabel = (format: TournamentFormat) => {
     switch (format) {
       case TournamentFormat.SINGLE_ELIMINATION:
-        return "Single Elimination"
+        return "Single Elimination";
       case TournamentFormat.DOUBLE_ELIMINATION:
-        return "Double Elimination"
+        return "Double Elimination";
       case TournamentFormat.ROUND_ROBIN:
-        return "Round Robin"
+        return "Round Robin";
       case TournamentFormat.POOL_PLAY:
-        return "Pool Play"
+        return "Pool Play";
       default:
-        return "Unknown Format"
+        return "Unknown Format";
     }
-  }
+  };
 
   const getFormatColor = (format: TournamentFormat) => {
     switch (format) {
       case TournamentFormat.SINGLE_ELIMINATION:
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300";
       case TournamentFormat.DOUBLE_ELIMINATION:
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300"
+        return "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300";
       case TournamentFormat.ROUND_ROBIN:
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300";
       case TournamentFormat.POOL_PLAY:
-        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300";
     }
-  }
+  };
 
   // Helper function to create a URL-friendly slug
   const createSlug = (name: string) => {
@@ -86,14 +110,14 @@ export default function TournamentDetailsPage() {
       .toLowerCase()
       .replace(/[^\w\s-]/g, "")
       .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-  }
+      .replace(/-+/g, "-");
+  };
 
   // Start the tournament - generate bracket with current teams
-  const handleStartTournament = () => {
-    if (!tournament || !currentUser?.isAdmin) return
+  const handleStartTournament = async () => {
+    if (!tournament || !currentUser?.isAdmin) return;
 
-    setStartingTournament(true)
+    setStartingTournament(true);
 
     try {
       // Generate a new bracket with the current teams
@@ -109,8 +133,8 @@ export default function TournamentDetailsPage() {
           quarterFinalGames: tournament.quarterFinalGames || 3,
           semiFinalGames: tournament.semiFinalGames || 3,
           finalGames: tournament.finalGames || 3,
-        },
-      )
+        }
+      );
 
       // Preserve other tournament properties
       const finalTournament = {
@@ -125,36 +149,42 @@ export default function TournamentDetailsPage() {
         matchType: tournament.matchType,
         slug: tournament.slug,
         isStarted: true, // Mark as started
-      }
+      };
 
       // Update the tournament
-      updateTournament(finalTournament)
-      setTournament(finalTournament)
+      await updateTournamentInDB(finalTournament);
+      setTournament(finalTournament);
 
       // Show success message
-      alert("Tournament has been started! The bracket has been generated with the current teams.")
+      alert(
+        "Tournament has been started! The bracket has been generated with the current teams."
+      );
 
       // Redirect to bracket page
-      router.push(`/${params?.tournamentSlug}/bracket`)
+      router.push(`/${params?.tournamentSlug}/bracket`);
     } catch (error) {
-      console.error("Error starting tournament:", error)
-      alert("There was an error starting the tournament. Please try again.")
+      console.error("Error starting tournament:", error);
+      alert("There was an error starting the tournament. Please try again.");
     } finally {
-      setStartingTournament(false)
+      setStartingTournament(false);
     }
-  }
+  };
 
   if (!tournament) {
     return (
       <div className="container mx-auto py-8 px-4">
         <p>Loading tournament details...</p>
       </div>
-    )
+    );
   }
 
   return (
     <main className="container mx-auto py-8 px-4">
-      <Button variant="ghost" className="mb-6" onClick={() => router.push("/tournaments")}>
+      <Button
+        variant="ghost"
+        className="mb-6"
+        onClick={() => router.push("/tournaments")}
+      >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back to Tournaments
       </Button>
@@ -164,16 +194,25 @@ export default function TournamentDetailsPage() {
           <div className="mb-6">
             <div className="flex flex-wrap items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold">{tournament.name}</h1>
-              <Badge className={getFormatColor(tournament.format)}>{getFormatLabel(tournament.format)}</Badge>
+              <Badge className={getFormatColor(tournament.format)}>
+                {getFormatLabel(tournament.format)}
+              </Badge>
 
               {tournament.isStarted && (
-                <Badge variant="outline" className="bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-300">
+                <Badge
+                  variant="outline"
+                  className="bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-300"
+                >
                   Tournament Started
                 </Badge>
               )}
             </div>
 
-            {tournament.description && <p className="text-muted-foreground mb-4">{tournament.description}</p>}
+            {tournament.description && (
+              <p className="text-muted-foreground mb-4">
+                {tournament.description}
+              </p>
+            )}
 
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-6">
               <div className="flex items-center">
@@ -193,7 +232,12 @@ export default function TournamentDetailsPage() {
             </div>
 
             <div className="relative h-64 w-full mb-6 bg-gray-100 rounded-lg overflow-hidden">
-              <Image src="/placeholder.svg?height=400&width=800" alt={tournament.name} fill className="object-cover" />
+              <Image
+                src="/placeholder.svg?height=400&width=800"
+                alt={tournament.name}
+                fill
+                className="object-cover"
+              />
             </div>
 
             <div className="prose max-w-none">
@@ -205,10 +249,11 @@ export default function TournamentDetailsPage() {
                     tournament.format === TournamentFormat.POOL_PLAY
                       ? "Teams will be divided into pools for round-robin play, followed by a knockout stage for top teams."
                       : tournament.format === TournamentFormat.ROUND_ROBIN
-                        ? "Each team will play against every other team in the tournament."
-                        : tournament.format === TournamentFormat.DOUBLE_ELIMINATION
-                          ? "Teams will have a second chance after their first loss."
-                          : "Teams will be eliminated after a single loss."
+                      ? "Each team will play against every other team in the tournament."
+                      : tournament.format ===
+                        TournamentFormat.DOUBLE_ELIMINATION
+                      ? "Teams will have a second chance after their first loss."
+                      : "Teams will be eliminated after a single loss."
                   }`}
               </p>
 
@@ -225,7 +270,8 @@ export default function TournamentDetailsPage() {
                   <strong>Format:</strong> {getFormatLabel(tournament.format)}
                 </li>
                 <li>
-                  <strong>Match Type:</strong> {tournament.matchType || "Standard"}
+                  <strong>Match Type:</strong>{" "}
+                  {tournament.matchType || "Standard"}
                 </li>
                 {tournament.pointsToWin && (
                   <li>
@@ -256,7 +302,9 @@ export default function TournamentDetailsPage() {
             <div className="mt-8 flex gap-4">
               {tournament.isStarted ? (
                 <Button
-                  onClick={() => router.push(`/${params?.tournamentSlug}/bracket`)}
+                  onClick={() =>
+                    router.push(`/${params?.tournamentSlug}/bracket`)
+                  }
                   className="bg-blue-600 hover:bg-blue-700"
                 >
                   View Bracket
@@ -269,7 +317,9 @@ export default function TournamentDetailsPage() {
                   disabled={startingTournament || tournament.teams.length < 2}
                 >
                   <Play className="mr-2 h-4 w-4" />
-                  {startingTournament ? "Starting Tournament..." : "Start Tournament"}
+                  {startingTournament
+                    ? "Starting Tournament..."
+                    : "Start Tournament"}
                 </Button>
               ) : (
                 <div className="flex items-center text-amber-600 dark:text-amber-400">
@@ -279,7 +329,10 @@ export default function TournamentDetailsPage() {
               )}
 
               {currentUser?.isAdmin && (
-                <Button variant="outline" onClick={() => router.push(`/${params?.tournamentSlug}/edit`)}>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push(`/${params?.tournamentSlug}/edit`)}
+                >
                   <Edit className="mr-2 h-4 w-4" />
                   Edit Tournament
                 </Button>
@@ -292,7 +345,9 @@ export default function TournamentDetailsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Tournament Registration</CardTitle>
-              <CardDescription>Register your team to participate in this tournament</CardDescription>
+              <CardDescription>
+                Register your team to participate in this tournament
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {tournament.isStarted ? (
@@ -307,23 +362,26 @@ export default function TournamentDetailsPage() {
                   onCancel={() => setShowRegistrationForm(false)}
                   onSubmit={(team) => {
                     // Add team to tournament
-                    const updatedTeams = [...tournament.teams, team]
+                    const updatedTeams = [...tournament.teams, team];
                     const updatedTournament = {
                       ...tournament,
                       teams: updatedTeams,
-                    }
-                    updateTournament(updatedTournament)
-                    setTournament(updatedTournament)
-                    setShowRegistrationForm(false)
+                    };
+                    updateTournamentInDB(updatedTournament);
+                    setTournament(updatedTournament);
+                    setShowRegistrationForm(false);
                   }}
                 />
               ) : (
                 <div className="space-y-4">
                   <p className="text-sm text-muted-foreground">
-                    Join this tournament by registering your team. Fill out the registration form with your team
-                    details.
+                    Join this tournament by registering your team. Fill out the
+                    registration form with your team details.
                   </p>
-                  <Button className="w-full" onClick={() => setShowRegistrationForm(true)}>
+                  <Button
+                    className="w-full"
+                    onClick={() => setShowRegistrationForm(true)}
+                  >
                     Register Team
                   </Button>
                 </div>
@@ -334,7 +392,9 @@ export default function TournamentDetailsPage() {
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>Registered Teams</CardTitle>
-              <CardDescription>{tournament.teams.length} teams have registered</CardDescription>
+              <CardDescription>
+                {tournament.teams.length} teams have registered
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {tournament.teams.length > 0 ? (
@@ -343,18 +403,22 @@ export default function TournamentDetailsPage() {
                     <li key={team.id} className="p-2 border rounded-md">
                       <div className="font-medium">{team.name}</div>
                       {team.players && team.players.length > 0 && (
-                        <div className="text-xs text-muted-foreground">{team.players.join(" / ")}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {team.players.join(" / ")}
+                        </div>
                       )}
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-muted-foreground">No teams have registered yet. Be the first to join!</p>
+                <p className="text-sm text-muted-foreground">
+                  No teams have registered yet. Be the first to join!
+                </p>
               )}
             </CardContent>
           </Card>
         </div>
       </div>
     </main>
-  )
+  );
 }

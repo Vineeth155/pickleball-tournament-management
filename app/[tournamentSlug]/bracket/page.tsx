@@ -1,44 +1,53 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter, useParams } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth"
-import { getAllTournaments, updateMatchInTournament } from "@/lib/tournament-store"
-import TournamentBracket from "@/components/tournament-bracket"
-import type { User, Tournament, Match } from "@/lib/types"
-import { ArrowLeft } from "lucide-react"
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth";
+import {
+  getTournamentsFromDB,
+  updateMatchInTournament,
+} from "@/lib/tournament-store";
+import TournamentBracket from "@/components/tournament-bracket";
+import type { User, Tournament, Match } from "@/lib/types";
+import { ArrowLeft } from "lucide-react";
 
 export default function TournamentBracketPage() {
-  const router = useRouter()
-  const params = useParams()
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [tournament, setTournament] = useState<Tournament | null>(null)
+  const router = useRouter();
+  const params = useParams();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [tournament, setTournament] = useState<Tournament | null>(null);
 
   // Load user and tournament from localStorage on initial render
   useEffect(() => {
-    const user = getStoredUser()
-    if (user) {
-      setCurrentUser(user)
-    }
-
-    // Load tournaments from localStorage
-    loadTournamentsFromLocalStorage()
-
-    // Find tournament by slug
-    const slug = params?.tournamentSlug as string
-    if (slug) {
-      const allTournaments = getAllTournaments()
-      const foundTournament = allTournaments.find((t) => t.slug === slug || createSlug(t.name) === slug)
-
-      if (foundTournament) {
-        setTournament(foundTournament)
-      } else {
-        // Tournament not found, redirect to tournaments list
-        router.push("/tournaments")
+    const fetchData = async () => {
+      const user = getStoredUser();
+      if (user) {
+        setCurrentUser(user);
       }
-    }
-  }, [params, router])
+
+      // Load tournaments from localStorage
+      loadTournamentsFromLocalStorage();
+
+      // Find tournament by slug
+      const slug = params?.tournamentSlug as string;
+      if (slug) {
+        const allTournaments = await getTournamentsFromDB();
+        const foundTournament = allTournaments.find(
+          (t) => t.slug === slug || createSlug(t.name) === slug
+        );
+
+        if (foundTournament) {
+          setTournament(foundTournament);
+        } else {
+          // Tournament not found, redirect to tournaments list
+          router.push("/tournaments");
+        }
+      }
+    };
+
+    fetchData();
+  }, [params, router]);
 
   // Helper function to create a URL-friendly slug
   const createSlug = (name: string) => {
@@ -46,52 +55,65 @@ export default function TournamentBracketPage() {
       .toLowerCase()
       .replace(/[^\w\s-]/g, "")
       .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
-  }
+      .replace(/-+/g, "-");
+  };
 
   // Update the handleUpdateMatch function to properly handle knockout matches
-  const handleUpdateMatch = (matchId: string, updatedMatch: Partial<Match>) => {
-    if (!tournament || !currentUser?.isAdmin) return
+  const handleUpdateMatch = async (
+    matchId: string,
+    updatedMatch: Partial<Match>
+  ) => {
+    if (!tournament || !currentUser?.isAdmin) return;
 
     // Ensure completed flag is set if winner is set
     if (updatedMatch.winnerId !== undefined && updatedMatch.winnerId !== null) {
-      updatedMatch.completed = true
+      updatedMatch.completed = true;
     }
 
     // Debug to see what's happening
     console.log(`[Bracket Page] Updating match ${matchId}:`, {
       update: updatedMatch,
-    })
+    });
 
     // Direct update to ensure persistence
-    updateMatchInTournament(tournament.id, matchId, updatedMatch)
+    await updateMatchInTournament(tournament.id, matchId, updatedMatch);
 
     // Refresh tournament data
-    const updatedTournament = getAllTournaments().find((t) => t.id === tournament.id)
+    const allTournaments = await getTournamentsFromDB();
+    const updatedTournament = allTournaments.find(
+      (t) => t.id === tournament.id
+    );
     if (updatedTournament) {
-      setTournament(updatedTournament)
+      setTournament(updatedTournament);
     }
-  }
+  };
 
   if (!tournament) {
     return (
       <div className="container mx-auto py-8 px-4">
         <p>Loading tournament bracket...</p>
       </div>
-    )
+    );
   }
 
   return (
     <main className="container mx-auto py-8 px-4">
       <div className="flex justify-between items-center mb-6">
-        <Button variant="ghost" onClick={() => router.push(`/${params?.tournamentSlug}`)}>
+        <Button
+          variant="ghost"
+          onClick={() => router.push(`/${params?.tournamentSlug}`)}
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Tournament Details
         </Button>
         <h1 className="text-2xl font-bold">{tournament.name} - Bracket</h1>
       </div>
 
-      <TournamentBracket tournament={tournament} onUpdateMatch={handleUpdateMatch} currentUser={currentUser} />
+      <TournamentBracket
+        tournament={tournament}
+        onUpdateMatch={handleUpdateMatch}
+        currentUser={currentUser}
+      />
     </main>
-  )
+  );
 }
