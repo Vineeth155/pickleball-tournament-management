@@ -21,7 +21,7 @@ import {
 import { CalendarIcon, Trophy, Users, Trash2, MapPin } from "lucide-react";
 
 interface TournamentListProps {
-  currentUser: User | null;
+  currentUser: string | null;
 }
 
 export default function TournamentList({ currentUser }: TournamentListProps) {
@@ -140,10 +140,10 @@ export default function TournamentList({ currentUser }: TournamentListProps) {
             )}
           </CardContent>
           <CardFooter className="flex justify-between border-t pt-4">
-            <Link href={`/${createSlug(tournament.name)}`} passHref>
+            <Link href={`/tournaments/${tournament.id}`} passHref>
               <Button variant="outline">View Details</Button>
             </Link>
-            {currentUser?.isAdmin && (
+            {currentUser === tournament?.createdBy && (
               <Button
                 variant="ghost"
                 size="icon"

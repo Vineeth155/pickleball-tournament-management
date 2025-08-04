@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth";
 import {
+  getTournamentByIdFromDB,
   getTournamentsFromDB,
   updateMatchInTournament,
 } from "@/lib/tournament-store";
@@ -15,7 +16,7 @@ import { ArrowLeft } from "lucide-react";
 export default function TournamentBracketPage() {
   const router = useRouter();
   const params = useParams();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
 
   // Load user and tournament from localStorage on initial render
@@ -30,12 +31,10 @@ export default function TournamentBracketPage() {
       loadTournamentsFromLocalStorage();
 
       // Find tournament by slug
-      const slug = params?.tournamentSlug as string;
+      const slug = params?.id as string;
       if (slug) {
-        const allTournaments = await getTournamentsFromDB();
-        const foundTournament = allTournaments.find(
-          (t) => t.slug === slug || createSlug(t.name) === slug
-        );
+        // const allTournaments = await getTournamentsFromDB();
+        const foundTournament = await getTournamentByIdFromDB(slug);
 
         if (foundTournament) {
           setTournament(foundTournament);
@@ -63,7 +62,7 @@ export default function TournamentBracketPage() {
     matchId: string,
     updatedMatch: Partial<Match>
   ) => {
-    if (!tournament || !currentUser?.isAdmin) return;
+    if (!tournament || !currentUser === tournament?.createdBy) return;
 
     // Ensure completed flag is set if winner is set
     if (updatedMatch.winnerId !== undefined && updatedMatch.winnerId !== null) {
@@ -101,7 +100,7 @@ export default function TournamentBracketPage() {
       <div className="flex justify-between items-center mb-6">
         <Button
           variant="ghost"
-          onClick={() => router.push(`/${params?.tournamentSlug}`)}
+          onClick={() => router.push(`/tournaments/${params?.id}`)}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Tournament Details

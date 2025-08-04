@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth";
 import {
+  getTournamentByIdFromDB,
   getTournamentsFromDB,
   updateTournamentInDB,
 } from "@/lib/tournament-store";
@@ -28,7 +29,7 @@ export default function EditTournamentPage() {
   const router = useRouter();
   const params = useParams();
   const { toast } = useToast();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -51,7 +52,7 @@ export default function EditTournamentPage() {
       }
 
       // Redirect non-admin users
-      if (user && !user.isAdmin) {
+      if (user && !user === tournament?.createdBy) {
         router.push("/");
         return;
       }
@@ -60,12 +61,10 @@ export default function EditTournamentPage() {
       loadTournamentsFromLocalStorage();
 
       // Find tournament by slug
-      const slug = params?.tournamentSlug as string;
+      const slug = params?.id as string;
       if (slug) {
-        const allTournaments = await getTournamentsFromDB();
-        const foundTournament = allTournaments.find(
-          (t) => t.slug === slug || createSlug(t.name) === slug
-        );
+        // const allTournaments = await getTournamentsFromDB();
+        const foundTournament = await getTournamentByIdFromDB(slug);
 
         if (foundTournament) {
           setTournament(foundTournament);
@@ -251,7 +250,7 @@ export default function EditTournamentPage() {
     }
   };
 
-  if (!tournament || !currentUser?.isAdmin) {
+  if (!tournament || !currentUser === tournament?.createdBy) {
     return (
       <div className="container mx-auto py-8 px-4">
         <p>Loading tournament or checking permissions...</p>
@@ -264,7 +263,7 @@ export default function EditTournamentPage() {
       <Button
         variant="ghost"
         className="mb-6"
-        onClick={() => router.push(`/${params?.tournamentSlug}`)}
+        onClick={() => router.push(`/tournaments/${params?.id}`)}
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back to Tournament Details

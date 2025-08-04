@@ -1,32 +1,32 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth"
-import type { User } from "@/lib/types"
-import Image from "next/image"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth";
+import type { User } from "@/lib/types";
+import Image from "next/image";
 
 export default function Home() {
-  const router = useRouter()
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [isLoaded, setIsLoaded] = useState(false)
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   // Load user from localStorage on initial render
   useEffect(() => {
     // Only run this effect once on mount
     if (!isLoaded) {
-      const user = getStoredUser()
+      const user = getStoredUser();
       if (user) {
-        setCurrentUser(user)
+        setCurrentUser(user);
       }
 
       // Load tournaments from localStorage
-      loadTournamentsFromLocalStorage()
+      loadTournamentsFromLocalStorage();
 
-      setIsLoaded(true)
+      setIsLoaded(true);
     }
-  }, [isLoaded])
+  }, [isLoaded]);
 
   return (
     <main className="min-h-screen">
@@ -35,9 +35,12 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between">
             <div className="md:w-1/2 mb-10 md:mb-0">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">Tournament Bracket Manager</h1>
+              <h1 className="text-4xl md:text-5xl font-bold mb-4">
+                Tournament Bracket Manager
+              </h1>
               <p className="text-xl mb-8">
-                Create, manage, and participate in tournaments with our easy-to-use bracket system.
+                Create, manage, and participate in tournaments with our
+                easy-to-use bracket system.
               </p>
               <div className="flex flex-wrap gap-4">
                 <Button
@@ -47,7 +50,7 @@ export default function Home() {
                 >
                   View Tournaments
                 </Button>
-                {currentUser?.isAdmin ? (
+                {currentUser ? (
                   <Button
                     size="lg"
                     variant="outline"
@@ -87,7 +90,9 @@ export default function Home() {
       {/* Features Section */}
       <section className="py-16 bg-gray-50 dark:bg-gray-900">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">Tournament Features</h2>
+          <h2 className="text-3xl font-bold text-center mb-12">
+            Tournament Features
+          </h2>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
               <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mb-4">
@@ -108,7 +113,8 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Multiple Formats</h3>
               <p className="text-gray-600 dark:text-gray-300">
-                Support for single elimination, double elimination, round robin, and pool play formats.
+                Support for single elimination, double elimination, round robin,
+                and pool play formats.
               </p>
             </div>
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
@@ -120,12 +126,18 @@ export default function Home() {
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
                 </svg>
               </div>
               <h3 className="text-xl font-semibold mb-2">Real-time Updates</h3>
               <p className="text-gray-600 dark:text-gray-300">
-                Instantly update scores and see bracket progression as matches are completed.
+                Instantly update scores and see bracket progression as matches
+                are completed.
               </p>
             </div>
             <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
@@ -147,7 +159,8 @@ export default function Home() {
               </div>
               <h3 className="text-xl font-semibold mb-2">Team Management</h3>
               <p className="text-gray-600 dark:text-gray-300">
-                Easily add and manage teams with detailed player information and seeding.
+                Easily add and manage teams with detailed player information and
+                seeding.
               </p>
             </div>
           </div>
@@ -157,7 +170,9 @@ export default function Home() {
       {/* Tournament Types Section */}
       <section className="py-16 dark:bg-gray-800">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">Tournament Types</h2>
+          <h2 className="text-3xl font-bold text-center mb-12">
+            Tournament Types
+          </h2>
           <div className="grid md:grid-cols-2 gap-8">
             <div className="flex flex-col items-center">
               <div className="relative h-48 w-full mb-4">
@@ -168,9 +183,12 @@ export default function Home() {
                   className="object-cover rounded-lg"
                 />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Single & Double Elimination</h3>
+              <h3 className="text-xl font-semibold mb-2">
+                Single & Double Elimination
+              </h3>
               <p className="text-center text-gray-600 dark:text-gray-300">
-                Traditional bracket formats for competitive tournaments with direct elimination or second chance paths.
+                Traditional bracket formats for competitive tournaments with
+                direct elimination or second chance paths.
               </p>
             </div>
             <div className="flex flex-col items-center">
@@ -182,19 +200,26 @@ export default function Home() {
                   className="object-cover rounded-lg"
                 />
               </div>
-              <h3 className="text-xl font-semibold mb-2">Round Robin & Pool Play</h3>
+              <h3 className="text-xl font-semibold mb-2">
+                Round Robin & Pool Play
+              </h3>
               <p className="text-center text-gray-600 dark:text-gray-300">
-                Formats where each team plays against every other team, with optional playoff brackets.
+                Formats where each team plays against every other team, with
+                optional playoff brackets.
               </p>
             </div>
           </div>
           <div className="text-center mt-12">
-            <Button size="lg" onClick={() => router.push("/tournaments")} className="bg-blue-600 hover:bg-blue-700">
+            <Button
+              size="lg"
+              onClick={() => router.push("/tournaments")}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
               Browse Active Tournaments
             </Button>
           </div>
         </div>
       </section>
     </main>
-  )
+  );
 }

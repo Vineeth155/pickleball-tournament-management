@@ -1,81 +1,89 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect, useRef } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { getStoredUser, clearStoredUser, authenticateUser, storeUser } from "@/lib/auth"
-import type { User } from "@/lib/types"
-import { Moon, Sun, Menu, X, ChevronDown } from "lucide-react"
-import { useTheme } from "@/components/theme-provider"
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  getStoredUser,
+  clearStoredUser,
+  authenticateUser,
+  storeUser,
+} from "@/lib/auth";
+import type { User } from "@/lib/types";
+import { Moon, Sun, Menu, X, ChevronDown } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 
 export default function Navbar() {
-  const router = useRouter()
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [isLoaded, setIsLoaded] = useState(false)
-  const [loginDropdownOpen, setLoginDropdownOpen] = useState(false)
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
-  const [loginError, setLoginError] = useState("")
-  const { theme, setTheme } = useTheme()
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [loginDropdownOpen, setLoginDropdownOpen] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const { theme, setTheme } = useTheme();
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Load user from localStorage on initial render
   useEffect(() => {
     // Only run this effect once on mount
     if (!isLoaded) {
-      const user = getStoredUser()
+      const user = getStoredUser();
       if (user) {
-        setCurrentUser(user)
+        setCurrentUser(user);
       }
-      setIsLoaded(true)
+      setIsLoaded(true);
     }
-  }, [isLoaded])
+  }, [isLoaded]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setLoginDropdownOpen(false)
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setLoginDropdownOpen(false);
       }
     }
 
-    document.addEventListener("mousedown", handleClickOutside)
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [])
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const handleLogout = () => {
-    clearStoredUser()
-    setCurrentUser(null)
-    router.push("/")
-  }
+    clearStoredUser();
+    setCurrentUser(null);
+    router.push("/");
+  };
 
   const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark")
-  }
+    setTheme(theme === "dark" ? "light" : "dark");
+  };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoginError("")
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
 
-    const user = authenticateUser(username, password)
+    const user = await authenticateUser();
     if (user) {
-      storeUser(user)
-      setCurrentUser(user)
-      setLoginDropdownOpen(false)
-      setUsername("")
-      setPassword("")
+      // storeUser(user)
+      // setCurrentUser(user)
+      setLoginDropdownOpen(false);
+      setUsername("");
+      setPassword("");
     } else {
-      setLoginError("Invalid username or password")
+      setLoginError("Invalid username or password");
     }
-  }
+  };
 
   return (
     <nav className="bg-white dark:bg-gray-900 shadow-sm border-b">
@@ -83,7 +91,10 @@ export default function Navbar() {
         <div className="flex justify-between items-center h-16">
           {/* Logo/Brand */}
           <div className="flex-shrink-0">
-            <Link href="/" className="text-xl font-bold text-blue-600 dark:text-blue-400">
+            <Link
+              href="/"
+              className="text-xl font-bold text-blue-600 dark:text-blue-400"
+            >
               Tournament Bracket
             </Link>
           </div>
@@ -97,7 +108,7 @@ export default function Navbar() {
               Tournaments
             </Link>
 
-            {currentUser?.isAdmin && (
+            {currentUser && (
               <Link
                 href="/create-tournament"
                 className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
@@ -105,12 +116,24 @@ export default function Navbar() {
                 Create Tournament
               </Link>
             )}
+            {currentUser && (
+              <Link
+                href={`/organizers/${currentUser}`}
+                className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
+              >
+                Profile
+              </Link>
+            )}
 
             <Button variant="ghost" size="icon" onClick={toggleTheme}>
-              {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              {theme === "dark" ? (
+                <Sun className="h-5 w-5" />
+              ) : (
+                <Moon className="h-5 w-5" />
+              )}
             </Button>
 
-            {currentUser ? (
+            {/* {currentUser ? (
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-700 dark:text-gray-300">
                   {currentUser.username}
@@ -165,7 +188,9 @@ export default function Navbar() {
                           required
                         />
                       </div>
-                      {loginError && <p className="text-xs text-red-500">{loginError}</p>}
+                      {loginError && (
+                        <p className="text-xs text-red-500">{loginError}</p>
+                      )}
                       <div className="flex justify-between items-center pt-1">
                         <Link
                           href="/login"
@@ -182,13 +207,21 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
-            )}
+            )} */}
           </div>
 
           {/* Mobile menu button */}
           <div className="md:hidden">
-            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? (
+                <X className="h-6 w-6" />
+              ) : (
+                <Menu className="h-6 w-6" />
+              )}
             </Button>
           </div>
         </div>
@@ -219,7 +252,11 @@ export default function Navbar() {
             <div className="flex items-center justify-between py-2">
               <span className="text-gray-700 dark:text-gray-300">Theme</span>
               <Button variant="ghost" size="icon" onClick={toggleTheme}>
-                {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                {theme === "dark" ? (
+                  <Sun className="h-5 w-5" />
+                ) : (
+                  <Moon className="h-5 w-5" />
+                )}
               </Button>
             </div>
 
@@ -243,8 +280,8 @@ export default function Navbar() {
                   variant="outline"
                   className="w-full"
                   onClick={() => {
-                    router.push("/login")
-                    setMobileMenuOpen(false)
+                    router.push("/login");
+                    setMobileMenuOpen(false);
                   }}
                 >
                   Login
@@ -255,5 +292,5 @@ export default function Navbar() {
         </div>
       )}
     </nav>
-  )
+  );
 }
