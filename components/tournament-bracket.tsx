@@ -42,7 +42,7 @@ import {
 interface TournamentBracketProps {
   tournament: Tournament;
   onUpdateMatch: (matchId: string, updatedMatch: Partial<Match>) => void;
-  currentUser: User | null;
+  currentUser: string | null;
 }
 
 export default function TournamentBracket({
@@ -639,7 +639,7 @@ export default function TournamentBracket({
       teamPositions: Array<{ teamId: string; position: number }>,
       poolId: string
     ) => {
-      if (!currentUser?.isAdmin) return;
+      if (!currentUser === tournament?.createdBy) return;
 
       try {
         // Create a deep copy of the tournament
@@ -701,7 +701,7 @@ export default function TournamentBracket({
   // Handle toggling team qualification
   const handleToggleQualification = useCallback(
     async (teamId: string, poolId: string) => {
-      if (!currentUser?.isAdmin) return;
+      if (!currentUser === tournament?.createdBy) return;
 
       try {
         // Create a deep copy of the tournament
@@ -1060,7 +1060,7 @@ export default function TournamentBracket({
 
   // Open the team assignment dialog for a specific match
   const openAssignDialog = (match: Match) => {
-    if (!currentUser?.isAdmin) return;
+    if (!currentUser === tournament?.createdBy) return;
 
     setCurrentMatch(match);
     setTeam1Selection(match.team1Id || "none");
@@ -1101,7 +1101,7 @@ export default function TournamentBracket({
     setIsAssignDialogOpen(false);
 
     // Show toast notification
-    if (currentUser?.isAdmin) {
+    if (currentUser === tournament?.createdBy) {
       toast({
         title: "Teams Assigned",
         description: "Teams have been successfully assigned to the match.",
@@ -1490,13 +1490,13 @@ export default function TournamentBracket({
 
   // Handle match deletion
   const openDeleteMatchDialog = (match: Match) => {
-    if (!currentUser?.isAdmin) return;
+    if (!currentUser === tournament?.createdBy) return;
     setMatchToDelete(match);
     setIsDeleteDialogOpen(true);
   };
 
   const handleDeleteMatch = async () => {
-    if (!matchToDelete || !currentUser?.isAdmin) return;
+    if (!matchToDelete || !currentUser === tournament?.createdBy) return;
 
     try {
       // Delete the match from the tournament
@@ -1526,7 +1526,7 @@ export default function TournamentBracket({
 
   // Handle adding a new match
   const openAddMatchDialog = (round: number, poolId?: string) => {
-    if (!currentUser?.isAdmin) return;
+    if (!currentUser === tournament?.createdBy) return;
 
     // Find the next available position in the round
     let nextPosition = 0;
@@ -1569,7 +1569,7 @@ export default function TournamentBracket({
   };
 
   const handleAddMatch = async () => {
-    if (!currentUser?.isAdmin) return;
+    if (!currentUser === tournament?.createdBy) return;
 
     try {
       // Create a new match object
@@ -1698,7 +1698,7 @@ export default function TournamentBracket({
                         className="relative"
                         data-match-id={match.id}
                       >
-                        {currentUser?.isAdmin && (
+                        {currentUser === tournament?.createdBy && (
                           <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                             {!completed && (
                               <Button
@@ -1729,7 +1729,11 @@ export default function TournamentBracket({
                           }
                           ready={ready}
                           completed={completed}
-                          currentUser={currentUser}
+                          currentUser={
+                            currentUser
+                              ? currentUser === tournament?.createdBy
+                              : false
+                          }
                           pointsToWin={tournament.pointsToWin}
                           winBy={tournament.winBy}
                           bestOf={match.bestOf || 1}
@@ -1738,7 +1742,7 @@ export default function TournamentBracket({
                       </div>
                     );
                   })}
-                  {currentUser?.isAdmin && (
+                  {currentUser === tournament?.createdBy && (
                     <Button
                       variant="outline"
                       onClick={() => openAddMatchDialog(activeRound)}
@@ -1766,7 +1770,7 @@ export default function TournamentBracket({
                             <h3 className="text-xl font-semibold">
                               Round {roundIndex + 1}
                             </h3>
-                            {currentUser?.isAdmin && (
+                            {currentUser === tournament?.createdBy && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -1791,7 +1795,7 @@ export default function TournamentBracket({
                                   className="relative"
                                   data-match-id={match.id}
                                 >
-                                  {currentUser?.isAdmin && (
+                                  {currentUser === tournament?.createdBy && (
                                     <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                                       {!completed && (
                                         <Button
@@ -1826,7 +1830,11 @@ export default function TournamentBracket({
                                     }
                                     ready={ready}
                                     completed={completed}
-                                    currentUser={currentUser}
+                                    currentUser={
+                                      currentUser
+                                        ? currentUser === tournament?.createdBy
+                                        : false
+                                    }
                                     pointsToWin={tournament.pointsToWin}
                                     winBy={tournament.winBy}
                                     bestOf={match.bestOf || 1}
@@ -2112,7 +2120,11 @@ export default function TournamentBracket({
                     onToggleQualification={handleToggleQualification}
                     onUpdatePositions={handleUpdatePositions}
                     poolId={activePool}
-                    currentUser={currentUser}
+                    currentUser={
+                      currentUser
+                        ? currentUser === tournament?.createdBy
+                        : false
+                    }
                     forceUpdate={forceUpdateCounter}
                   />
                 ) : (
@@ -2175,7 +2187,7 @@ export default function TournamentBracket({
                           className="relative"
                           data-match-id={match.id}
                         >
-                          {currentUser?.isAdmin && (
+                          {currentUser === tournament?.createdBy && (
                             <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                               {!completed && (
                                 <Button
@@ -2206,7 +2218,11 @@ export default function TournamentBracket({
                             }
                             ready={ready}
                             completed={completed}
-                            currentUser={currentUser}
+                            currentUser={
+                              currentUser
+                                ? currentUser === tournament?.createdBy
+                                : false
+                            }
                             pointsToWin={tournament.pointsToWin}
                             winBy={tournament.winBy}
                             bestOf={match.bestOf || 1}
@@ -2215,7 +2231,7 @@ export default function TournamentBracket({
                         </div>
                       );
                     })}
-                    {currentUser?.isAdmin && (
+                    {currentUser === tournament?.createdBy && (
                       <Button
                         variant="outline"
                         onClick={() =>
@@ -2256,7 +2272,7 @@ export default function TournamentBracket({
                               <h3 className="text-xl font-semibold">
                                 Round {roundIndex + 1}
                               </h3>
-                              {currentUser?.isAdmin && (
+                              {currentUser === tournament?.createdBy && (
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -2283,7 +2299,7 @@ export default function TournamentBracket({
                                     className="relative"
                                     data-match-id={match.id}
                                   >
-                                    {currentUser?.isAdmin && (
+                                    {currentUser === tournament?.createdBy && (
                                       <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                                         {!completed && (
                                           <Button
@@ -2318,7 +2334,12 @@ export default function TournamentBracket({
                                       }
                                       ready={ready}
                                       completed={completed}
-                                      currentUser={currentUser}
+                                      currentUser={
+                                        currentUser
+                                          ? currentUser ===
+                                            tournament?.createdBy
+                                          : false
+                                      }
                                       pointsToWin={tournament.pointsToWin}
                                       winBy={tournament.winBy}
                                       bestOf={match.bestOf || 1}
@@ -2333,7 +2354,7 @@ export default function TournamentBracket({
                       })}
 
                     {/* Add Round button for admins */}
-                    {currentUser?.isAdmin && (
+                    {currentUser === tournament?.createdBy && (
                       <div className="flex-shrink-0 w-72">
                         <div className="flex justify-center items-center h-full">
                           <Button
@@ -2390,7 +2411,7 @@ export default function TournamentBracket({
 
           <TabsContent value="knockout" className="space-y-8">
             {/* Populate Bracket Button */}
-            {currentUser?.isAdmin &&
+            {currentUser === tournament?.createdBy &&
               areAllPoolMatchesCompleted &&
               qualifiedTeams.length > 0 && (
                 <div className="mb-8">
@@ -2455,7 +2476,11 @@ export default function TournamentBracket({
                         onToggleQualification={handleToggleQualification}
                         onUpdatePositions={handleUpdatePositions}
                         poolId={pool.id.toString()}
-                        currentUser={currentUser}
+                        currentUser={
+                          currentUser
+                            ? currentUser === tournament?.createdBy
+                            : false
+                        }
                         forceUpdate={forceUpdateCounter}
                       />
                     </div>
@@ -2512,7 +2537,7 @@ export default function TournamentBracket({
                         className="relative"
                         data-match-id={match.id}
                       >
-                        {currentUser?.isAdmin && (
+                        {currentUser === tournament?.createdBy && (
                           <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                             {!completed && (
                               <Button
@@ -2543,7 +2568,11 @@ export default function TournamentBracket({
                           }
                           ready={ready}
                           completed={completed}
-                          currentUser={currentUser}
+                          currentUser={
+                            currentUser
+                              ? currentUser === tournament?.createdBy
+                              : false
+                          }
                           pointsToWin={tournament.pointsToWin}
                           winBy={tournament.winBy}
                           bestOf={match.bestOf || 1}
@@ -2552,20 +2581,21 @@ export default function TournamentBracket({
                       </div>
                     );
                   })}
-                  {currentUser?.isAdmin && activeRound >= 100 && (
-                    <Button
-                      variant="outline"
-                      onClick={() => openAddMatchDialog(activeRound)}
-                      className="w-full flex items-center justify-center gap-1 mt-4"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add Match
-                    </Button>
-                  )}
+                  {currentUser === tournament?.createdBy &&
+                    activeRound >= 100 && (
+                      <Button
+                        variant="outline"
+                        onClick={() => openAddMatchDialog(activeRound)}
+                        className="w-full flex items-center justify-center gap-1 mt-4"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Match
+                      </Button>
+                    )}
                   {!Object.keys(knockoutMatchesByRound).length && (
                     <div className="text-center p-4 border rounded-lg">
                       <p>No knockout matches available yet.</p>
-                      {currentUser?.isAdmin && (
+                      {currentUser === tournament?.createdBy && (
                         <Button
                           variant="outline"
                           onClick={() => openAddMatchDialog(100)}
@@ -2597,7 +2627,7 @@ export default function TournamentBracket({
                             <h3 className="text-xl font-semibold">
                               Knockout Round {round - 99}
                             </h3>
-                            {currentUser?.isAdmin && (
+                            {currentUser === tournament?.createdBy && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -2622,7 +2652,7 @@ export default function TournamentBracket({
                                   className="relative"
                                   data-match-id={match.id}
                                 >
-                                  {currentUser?.isAdmin && (
+                                  {currentUser === tournament?.createdBy && (
                                     <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                                       {!completed && (
                                         <Button
@@ -2657,7 +2687,11 @@ export default function TournamentBracket({
                                     }
                                     ready={ready}
                                     completed={completed}
-                                    currentUser={currentUser}
+                                    currentUser={
+                                      currentUser
+                                        ? currentUser === tournament?.createdBy
+                                        : false
+                                    }
                                     pointsToWin={tournament.pointsToWin}
                                     winBy={tournament.winBy}
                                     bestOf={match.bestOf || 1}
@@ -2672,7 +2706,7 @@ export default function TournamentBracket({
                     })}
 
                   {/* Add Round button for admins */}
-                  {currentUser?.isAdmin && (
+                  {currentUser === tournament?.createdBy && (
                     <div className="flex-shrink-0 w-72">
                       <div className="flex justify-center items-center h-full">
                         <Button
@@ -2959,7 +2993,7 @@ export default function TournamentBracket({
                   className="relative"
                   data-match-id={match.id}
                 >
-                  {currentUser?.isAdmin && (
+                  {currentUser === tournament?.createdBy && (
                     <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                       {!completed && (
                         <Button
@@ -2990,7 +3024,11 @@ export default function TournamentBracket({
                     }
                     ready={ready}
                     completed={completed}
-                    currentUser={currentUser}
+                    currentUser={
+                      currentUser
+                        ? currentUser === tournament?.createdBy
+                        : false
+                    }
                     pointsToWin={tournament.pointsToWin}
                     winBy={tournament.winBy}
                     bestOf={match.bestOf || 1}
@@ -2999,7 +3037,7 @@ export default function TournamentBracket({
                 </div>
               );
             })}
-            {currentUser?.isAdmin && (
+            {currentUser === tournament?.createdBy && (
               <Button
                 variant="outline"
                 onClick={() => openAddMatchDialog(activeRound)}
@@ -3024,7 +3062,7 @@ export default function TournamentBracket({
                   <div key={roundIndex} className="flex-shrink-0 w-72">
                     <div className="flex justify-between items-center mb-4">
                       <h3 className="text-xl font-semibold">{roundName}</h3>
-                      {currentUser?.isAdmin && (
+                      {currentUser === tournament?.createdBy && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -3049,7 +3087,7 @@ export default function TournamentBracket({
                             className="relative"
                             data-match-id={match.id}
                           >
-                            {currentUser?.isAdmin && (
+                            {currentUser === tournament?.createdBy && (
                               <div className="absolute -top-2 -right-2 z-10 flex gap-1">
                                 {!completed && (
                                   <Button
@@ -3080,7 +3118,11 @@ export default function TournamentBracket({
                               }
                               ready={ready}
                               completed={completed}
-                              currentUser={currentUser}
+                              currentUser={
+                                currentUser
+                                  ? currentUser === tournament?.createdBy
+                                  : false
+                              }
                               pointsToWin={tournament.pointsToWin}
                               winBy={tournament.winBy}
                               bestOf={match.bestOf || 1}

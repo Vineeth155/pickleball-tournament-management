@@ -30,6 +30,7 @@ import { createTournamentInDB } from "@/lib/tournament-store";
 import { Separator } from "@/components/ui/separator";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { authenticateUser } from "@/lib/auth";
 
 interface TournamentFormProps {
   userId: string;
@@ -57,6 +58,12 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
   const [quarterFinalGames, setQuarterFinalGames] = useState<number>(3);
   const [semiFinalGames, setSemiFinalGames] = useState<number>(3);
   const [finalGames, setFinalGames] = useState<number>(3);
+
+  // Points to win per stage
+  const [earlyRoundPoints, setEarlyRoundPoints] = useState<number>(11);
+  const [quarterFinalPoints, setQuarterFinalPoints] = useState<number>(11);
+  const [semiFinalPoints, setSemiFinalPoints] = useState<number>(11);
+  const [finalPoints, setFinalPoints] = useState<number>(11);
 
   // Pool play configuration
   const [enablePoolPlay, setEnablePoolPlay] = useState<boolean>(true);
@@ -87,6 +94,10 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
         quarterFinalGames,
         semiFinalGames,
         finalGames,
+        earlyRoundPoints,
+        quarterFinalPoints,
+        semiFinalPoints,
+        finalPoints,
       }
     );
 
@@ -98,7 +109,8 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
     tournament.winBy = winBy;
     tournament.matchType = matchType;
 
-    await createTournamentInDB(tournament);
+    const validateUser = await authenticateUser();
+    validateUser && (await createTournamentInDB(tournament));
 
     router.push("/tournaments");
   };
@@ -292,6 +304,88 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
               </div>
 
               <div className="grid md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="earlyRoundPoints">Early Round Points</Label>
+                  <Select
+                    value={earlyRoundPoints.toString()}
+                    onValueChange={(value) =>
+                      setEarlyRoundPoints(Number.parseInt(value))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Points" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="11">11 Points</SelectItem>
+                      <SelectItem value="13">13 Points</SelectItem>
+                      <SelectItem value="15">15 Points</SelectItem>
+                      <SelectItem value="21">21 Points</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="quarterFinalPoints">
+                    Quarter Final Points
+                  </Label>
+                  <Select
+                    value={quarterFinalPoints.toString()}
+                    onValueChange={(value) =>
+                      setQuarterFinalPoints(Number.parseInt(value))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Points" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="11">11 Points</SelectItem>
+                      <SelectItem value="13">13 Points</SelectItem>
+                      <SelectItem value="15">15 Points</SelectItem>
+                      <SelectItem value="21">21 Points</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="semiFinalPoints">Semi Final Points</Label>
+                  <Select
+                    value={semiFinalPoints.toString()}
+                    onValueChange={(value) =>
+                      setSemiFinalPoints(Number.parseInt(value))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Points" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="11">11 Points</SelectItem>
+                      <SelectItem value="13">13 Points</SelectItem>
+                      <SelectItem value="15">15 Points</SelectItem>
+                      <SelectItem value="21">21 Points</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="finalPoints">Final Points</Label>
+                  <Select
+                    value={finalPoints.toString()}
+                    onValueChange={(value) =>
+                      setFinalPoints(Number.parseInt(value))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Points" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="11">11 Points</SelectItem>
+                      <SelectItem value="13">13 Points</SelectItem>
+                      <SelectItem value="15">15 Points</SelectItem>
+                      <SelectItem value="21">21 Points</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="earlyRoundGames">Early Rounds</Label>
                   <Select

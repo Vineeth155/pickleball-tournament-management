@@ -423,10 +423,11 @@ export async function createTournamentInDB(
 ): Promise<Tournament> {
   try {
     const slug = createSlug(tournament.name);
-
+    const organizerId = localStorage.getItem("organizerId");
     const newTournament: Tournament = {
       ...tournament,
       createdAt: Date.now(),
+      organizerId,
       slug,
     };
 

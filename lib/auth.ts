@@ -20,53 +20,40 @@ const USERS: User[] = [
 // Track if we've already logged the user info to prevent excessive logging
 let hasLoggedUserInfo = false;
 
-export function authenticateUser(
-  username: string,
-  password: string
-): User | null {
-  console.log(`Authenticating user: ${username}`);
-  const user = USERS.find(
-    (u) => u.username === username && u.password === password
-  );
-  console.log(
-    `Authentication result:`,
-    user ? `Success (isAdmin: ${user.isAdmin})` : "Failed"
-  );
+export async function authenticateUser(): Promise<boolean> {
+  if (typeof window === "undefined") return false; // only runs on client
 
-  // Reset the logging flag when a new authentication happens
-  hasLoggedUserInfo = false;
+  const organizerId = localStorage.getItem("organizerId");
+  if (!organizerId) return false;
 
-  return user || null;
+  try {
+    const res = await fetch("/api/organizers/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ organizerId }),
+    });
+
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.valid === true;
+  } catch (err) {
+    console.error("Error authenticating user:", err);
+    return false;
+  }
 }
 
 // For client-side auth state management
-export function getStoredUser(): User | null {
+export function getStoredUser(): string | null {
   if (typeof window === "undefined") return null;
 
-  const userJson = localStorage.getItem("tournament_user");
+  const userJson = localStorage.getItem("organizerId");
   if (!userJson) return null;
-
-  try {
-    const user = JSON.parse(userJson) as User;
-
-    // Only log once to prevent console spam
-    if (!hasLoggedUserInfo) {
-      console.log(
-        `Retrieved stored user: ${user.username} (isAdmin: ${user.isAdmin})`
-      );
-      hasLoggedUserInfo = true;
-    }
-
-    return user;
-  } catch (e) {
-    console.error("Failed to parse stored user:", e);
-    return null;
-  }
+  return userJson;
 }
 
 export function storeUser(user: User): void {
   if (typeof window === "undefined") return;
-  console.log(`Storing user: ${user.username} (isAdmin: ${user.isAdmin})`);
+  console.log(`Storing user: ${user} (isAdmin: ${user})`);
   localStorage.setItem("tournament_user", JSON.stringify(user));
 
   // Reset the logging flag when storing a new user

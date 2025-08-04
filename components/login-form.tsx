@@ -1,44 +1,52 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { authenticateUser, storeUser } from "@/lib/auth"
-import type { User } from "@/lib/types"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { authenticateUser, storeUser } from "@/lib/auth";
+import type { User } from "@/lib/types";
 
 interface LoginFormProps {
-  onLogin: (user: User) => void
+  onLogin: (user: User) => void;
 }
 
 export default function LoginForm({ onLogin }: LoginFormProps) {
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setError("")
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
 
-    const user = authenticateUser(username, password)
+    const user = await authenticateUser();
     if (user) {
-      console.log("Login successful:", user)
-      storeUser(user)
-      onLogin(user)
+      console.log("Login successful:", user);
+      // storeUser(user)
+      // onLogin(user)
     } else {
-      console.log("Login failed")
-      setError("Invalid username or password")
+      console.log("Login failed");
+      setError("Invalid username or password");
     }
-  }
+  };
 
   return (
     <Card className="w-full max-w-md mx-auto">
       <CardHeader>
         <CardTitle>Admin Login</CardTitle>
-        <CardDescription>Login to manage the tournament. Use admin/admin123 for admin access.</CardDescription>
+        <CardDescription>
+          Login to manage the tournament. Use admin/admin123 for admin access.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -73,5 +81,5 @@ export default function LoginForm({ onLogin }: LoginFormProps) {
         </form>
       </CardContent>
     </Card>
-  )
+  );
 }
