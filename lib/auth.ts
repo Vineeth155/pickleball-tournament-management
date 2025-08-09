@@ -1,22 +1,5 @@
 import type { User } from "./types";
 
-// In a real app, you would use a database and proper authentication
-// This is a simple mock for demonstration purposes
-const USERS: User[] = [
-  {
-    id: "1",
-    username: "admin",
-    password: "admin123", // In a real app, never store plain text passwords
-    isAdmin: true,
-  },
-  {
-    id: "2",
-    username: "user",
-    password: "user123",
-    isAdmin: false,
-  },
-];
-
 // Track if we've already logged the user info to prevent excessive logging
 let hasLoggedUserInfo = false;
 

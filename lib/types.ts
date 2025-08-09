@@ -37,6 +37,7 @@ export interface Match {
   completed?: boolean; // Match is completed
   poolId?: number | string; // For pool play, which pool this match belongs to
   isKnockout?: boolean; // For pool play, whether this is a knockout stage match
+  pointsToWin?: number;
 }
 
 export interface Pool {

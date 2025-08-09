@@ -271,6 +271,7 @@ function generateSingleEliminationBracket(
     name,
     description,
     format: TournamentFormat.SINGLE_ELIMINATION,
+    organizerId: createdBy,
     createdAt: Date.now(),
     matches,
     totalRounds,
@@ -368,6 +369,9 @@ function generateDoubleEliminationBracket(
     if (team1Index === null && team2Index === null) {
       continue;
     }
+
+    // Determine the number of games for this match (first round)
+    const bestOf = earlyRoundGames;
 
     matches.push({
       pointsToWin:
@@ -479,15 +483,11 @@ function generateDoubleEliminationBracket(
   // Create losers bracket rounds
   // First, create round 0 of losers bracket (losers from winners round 1)
   for (let i = 0; i < firstRoundLoserMatches; i++) {
+    // For losers bracket round 0, use early round settings
+    const bestOf = earlyRoundGames;
+    
     matches.push({
-      pointsToWin:
-        bestOf === earlyRoundGames
-          ? earlyRoundPoints
-          : bestOf === quarterFinalGames
-          ? quarterFinalPoints
-          : bestOf === semiFinalGames
-          ? semiFinalPoints
-          : finalPoints,
+      pointsToWin: earlyRoundPoints,
       id: `l-match-0-${i}`,
       round: totalWinnerRounds, // Start losers bracket rounds after winners rounds
       position: i,
@@ -588,15 +588,11 @@ function generateDoubleEliminationBracket(
   }
 
   // Final match (winners bracket champion vs losers bracket champion)
+  // For the final match, use final games settings
+  const bestOf = finalGames;
+  
   matches.push({
-    pointsToWin:
-      bestOf === earlyRoundGames
-        ? earlyRoundPoints
-        : bestOf === quarterFinalGames
-        ? quarterFinalPoints
-        : bestOf === semiFinalGames
-        ? semiFinalPoints
-        : finalPoints,
+    pointsToWin: finalPoints,
     id: `final-match`,
     round: totalRounds - 1,
     position: 0,
@@ -618,6 +614,7 @@ function generateDoubleEliminationBracket(
     name,
     description,
     format: TournamentFormat.DOUBLE_ELIMINATION,
+    organizerId: createdBy,
     createdAt: Date.now(),
     matches,
     totalRounds,
@@ -639,7 +636,13 @@ function generateRoundRobinBracket(
   createdBy: string,
   options: BracketOptions = {}
 ): Tournament {
-  const { earlyRoundGames = 1 } = options;
+  const { 
+    earlyRoundGames = 1,
+    earlyRoundPoints = 11,
+    quarterFinalPoints = 11,
+    semiFinalPoints = 11,
+    finalPoints = 11,
+  } = options;
 
   const totalTeams = teams.length;
   const matches: Match[] = [];
@@ -656,15 +659,11 @@ function generateRoundRobinBracket(
   schedule.forEach((round, roundIndex) => {
     round.forEach((matchup, matchIndex) => {
       if (matchup.team1Id !== "bye" && matchup.team2Id !== "bye") {
+        // For round robin, all matches use the same format
+        const bestOf = earlyRoundGames;
+        
         matches.push({
-          pointsToWin:
-            bestOf === earlyRoundGames
-              ? earlyRoundPoints
-              : bestOf === quarterFinalGames
-              ? quarterFinalPoints
-              : bestOf === semiFinalGames
-              ? semiFinalPoints
-              : finalPoints,
+          pointsToWin: earlyRoundPoints,
           id: `match-${roundIndex}-${matchIndex}`,
           round: roundIndex,
           position: matchIndex,
@@ -687,6 +686,7 @@ function generateRoundRobinBracket(
     name,
     description,
     format: TournamentFormat.ROUND_ROBIN,
+    organizerId: createdBy,
     createdAt: Date.now(),
     matches,
     totalRounds: roundsNeeded,
@@ -793,7 +793,6 @@ function generatePoolPlayBracket(
   const knockoutRounds = Math.ceil(Math.log2(teamsAdvancing));
 
   // Generate knockout stage matches
-  const knockoutRoundCounter = 0;
 
   for (let round = 0; round < knockoutRounds; round++) {
     const matchesInRound = Math.pow(2, knockoutRounds - round - 1);
@@ -853,6 +852,7 @@ function generatePoolPlayBracket(
     name,
     description,
     format: TournamentFormat.POOL_PLAY,
+    organizerId: createdBy,
     createdAt: Date.now(),
     matches,
     totalRounds: Math.max(...matches.map((m) => m.round)) + 1,

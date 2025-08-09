@@ -7,7 +7,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   await connectDB();
-  const organizer = await Organizer.findOne({ organizerId: params.id });
+  const qpm = await params;
+  console.log("QPM", qpm);
+  const organizer = await Organizer.findOne({ organizerId: qpm.id });
   if (!organizer) {
     return NextResponse.json({ error: "Organizer not found" }, { status: 404 });
   }

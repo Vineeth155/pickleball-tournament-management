@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import Organizer from "@/models/Organizer";
 import { nanoid } from "nanoid";
+import bcrypt from "bcrypt";
 
 export async function POST(req: Request) {
   try {
@@ -24,6 +25,8 @@ export async function POST(req: Request) {
       );
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     await connectDB();
 
     const organizerId = "ORG-" + nanoid(8);
@@ -37,7 +40,7 @@ export async function POST(req: Request) {
       locationLink,
       aboutUs,
       username,
-      password, // ✅ Store username & password
+      password: hashedPassword,
       createdAt: new Date(),
     });
 

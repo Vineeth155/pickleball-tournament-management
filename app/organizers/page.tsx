@@ -31,7 +31,7 @@ export default function OrganizersPage() {
       {organizers.length === 0 && <p>No organizers registered yet.</p>}
 
       {organizers.map((org: any) => (
-        <Link href={`/organizers/${org._id}`} key={org._id}>
+        <Link href={`/organizers/${org.organizerId}`} key={org.organizerId}>
           <Card className="cursor-pointer hover:shadow-lg transition">
             <CardHeader>
               <CardTitle>{org.name}</CardTitle>
