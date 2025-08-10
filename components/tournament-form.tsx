@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import TeamForm from "@/components/team-form";
-import { type Team, TournamentFormat } from "@/lib/types";
+import { type Team, TournamentFormat, Category } from "@/lib/types";
 import { generateBracket } from "@/lib/bracket-utils";
 import { createTournamentInDB } from "@/lib/tournament-store";
 import { Separator } from "@/components/ui/separator";
@@ -46,7 +46,13 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [location, setLocation] = useState("");
   const [startDate, setStartDate] = useState("");
-  const [division, setDivision] = useState("");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryGender, setCategoryGender] = useState<"Mens" | "Womens" | "mixed" | undefined>(undefined);
+  const [categoryDivision, setCategoryDivision] = useState<"singles" | "doubles" | undefined>(undefined);
+  const [categoryMaxSkillLevel, setCategoryMaxSkillLevel] = useState(8.0);
+  const [categoryMinSkillLevel, setCategoryMinSkillLevel] = useState(2.0);
+  const [categoryAgeGroup, setCategoryAgeGroup] = useState("");
+  const [categorySeedingMethod, setCategorySeedingMethod] = useState("");
   const [pointsToWin, setPointsToWin] = useState<number>(11);
   const [winBy, setWinBy] = useState<number>(2);
   const [matchType, setMatchType] = useState<
@@ -67,9 +73,40 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
 
   // Pool play configuration
   const [enablePoolPlay, setEnablePoolPlay] = useState<boolean>(true);
+  
+  // Team registration category selection
+  const [selectedCategoryForTeam, setSelectedCategoryForTeam] = useState<string>("");
+
+  // Effect to handle mixed gender logic
+  useEffect(() => {
+    if (categoryGender === "mixed") {
+      setCategoryDivision("doubles");
+    }
+  }, [categoryGender]);
 
   const handleAddTeam = (team: Team) => {
     setTeams((prev) => [...prev, { ...team, id: Date.now().toString() }]);
+  };
+
+  const handleAddCategory = (category: Category) => {
+    if (!category.gender || !category.division || !category.skillLevel || !category.ageGroup || !category.seedingMethod) {
+      alert("Please fill in all category fields");
+      return;
+    }
+    setCategories((prev) => [...prev, category]);
+  };
+
+  const resetCategoryFields = () => {
+    setCategoryGender(undefined);
+    setCategoryDivision(undefined);
+    setCategoryMaxSkillLevel(8.0);
+    setCategoryMinSkillLevel(2.0);
+    setCategoryAgeGroup("");
+    setCategorySeedingMethod("");
+  };
+
+  const handleRemoveCategory = (id: string) => {
+    setCategories((prev) => prev.filter((cat) => cat.id !== id));
   };
 
   const handleRemoveTeam = (id: string) => {
@@ -104,10 +141,11 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
     // Add pickleball-specific settings
     tournament.location = location;
     tournament.startDate = startDate;
-    tournament.division = division;
+    // tournament.division = division;
     tournament.pointsToWin = pointsToWin;
     tournament.winBy = winBy;
-    tournament.matchType = matchType;
+    // tournament.matchType = matchType;
+    tournament.categories = categories;
 
     const validateUser = await authenticateUser();
     validateUser && (await createTournamentInDB(tournament));
@@ -181,13 +219,113 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="division">Division</Label>
-              <Input
-                id="division"
-                value={division}
-                onChange={(e) => setDivision(e.target.value)}
-                placeholder="e.g., Men's 4.0 35+"
-              />
+              <Label htmlFor="categories">Categories</Label>
+
+              <div className="space-y-2 flex flex-wrap">
+                <div></div>
+                  {categories.map((category) => (
+                  <div key={category.id} className="space-y-1 flex border rounded w-fit items-center space-x-2 px-2 pt-1 pb-2">
+                    <span className="pt-2 pl-2 capitalize">
+                      {category.gender} {category.division} {category.ageGroup} ({category.skillLevel?.min}-{category.skillLevel?.max})
+                    </span>
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleRemoveCategory(category.id)}
+                      >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2 flex flex-wrap gap-4 items-end">
+                <div className="flex-1 min-w-[140px] space-y-1">
+                  <Label htmlFor="gender">Gender</Label>
+                  <Select value={categoryGender || ""} onValueChange={(value: "Mens" | "Womens" | "mixed") => setCategoryGender(value)}>
+                    <SelectTrigger><SelectValue placeholder="Select gender"/></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Mens">Mens</SelectItem>
+                      <SelectItem value="Womens">Womens</SelectItem>
+                      <SelectItem value="mixed">Mixed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-1 min-w-[140px] space-y-1">
+                  <Label htmlFor="division">Division</Label>
+                  <Select 
+                    value={categoryDivision || ""} 
+                    onValueChange={(value: "singles" | "doubles") => setCategoryDivision(value)}
+                    disabled={categoryGender === "mixed"}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select division"/></SelectTrigger>
+                    <SelectContent>
+                      {categoryGender !== "mixed" && <SelectItem value="singles">Singles</SelectItem>}
+                      <SelectItem value="doubles">Doubles</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-1 max-w-[120px] space-y-2">
+                  <Label htmlFor="minRating">Max rating</Label>
+                  <Input
+                    id="maxRating"
+                    value={categoryMaxSkillLevel}
+                    onChange={(e) => setCategoryMaxSkillLevel(Math.min(parseFloat(e.target.value) || 0, 8.0))}
+                    placeholder="e.g., 8.0"
+                  />
+                </div>
+
+                <div className="flex-1 max-w-[120px] space-y-2">
+                  <Label htmlFor="minRating">Min  rating</Label>
+                  <Input
+                    id="minRating"
+                    value={categoryMinSkillLevel}
+                    onChange={(e) => setCategoryMinSkillLevel(Math.max(parseFloat(e.target.value) || 0, 2.0))}
+                    placeholder="e.g., 2.0"
+                  />
+                </div>
+
+                <div className="flex-1 min-w-[180px] space-y-1">
+                  <Label htmlFor="ageGroup">Age Group</Label>
+                  <Input
+                    id="ageGroup"
+                    value={categoryAgeGroup}
+                    onChange={(e) => setCategoryAgeGroup(e.target.value == "" ? "Open" : e.target.value)}
+                    placeholder="e.g., 35+"
+                  />
+                </div>
+
+                <div className="flex-1 min-w-[180px] space-y-1">
+                  <Label htmlFor="seedingMethod">Seeding Method</Label>
+                  <Select value={categorySeedingMethod} onValueChange={setCategorySeedingMethod}>
+                    <SelectTrigger><SelectValue placeholder="Select seeding method"/></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Random">Random</SelectItem>
+                      <SelectItem value="Ranking_Based">Ranking Based</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    if (categoryGender && categoryDivision) {
+                      handleAddCategory({
+                        id: Date.now().toString(),
+                        gender: categoryGender,
+                        division: categoryDivision,
+                        skillLevel: { min: categoryMinSkillLevel, max: categoryMaxSkillLevel },
+                        ageGroup: categoryAgeGroup,
+                        seedingMethod: categorySeedingMethod as any,
+                      });
+                    }
+                    resetCategoryFields();
+                  }}
+                >
+                  Add Category
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -264,7 +402,7 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
               <h3 className="text-md font-medium">Match Configuration</h3>
 
               <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
+                {/* <div className="space-y-2">
                   <Label htmlFor="matchType">Match Type</Label>
                   <Select
                     value={matchType}
@@ -281,7 +419,7 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
                       </SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
+                </div> */}
 
                 <div className="space-y-2">
                   <Label htmlFor="pointsToWin">Points to Win</Label>
@@ -467,7 +605,7 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
 
           <div className="border-t pt-6">
             <h3 className="text-lg font-medium mb-4">
-              Add {matchType === "Singles" ? "Players" : "Teams"} (Optional)
+              Add Teams/Players (Optional)
             </h3>
 
             <Alert className="mb-4">
@@ -479,67 +617,111 @@ export default function TournamentForm({ userId }: TournamentFormProps) {
               </AlertDescription>
             </Alert>
 
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <TeamForm
-                  onAddTeam={handleAddTeam}
-                  renderAsForm={false}
-                  matchType={matchType}
-                />
-
-                <div className="mt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleAddDummyTeams}
-                  >
-                    Add Dummy {matchType === "Singles" ? "Players" : "Teams"}
-                  </Button>
-                </div>
+            {categories.length > 0 ? (
+              <div className="mb-4">
+                <Label htmlFor="categorySelect">Select Category</Label>
+                <Select value={selectedCategoryForTeam} onValueChange={setSelectedCategoryForTeam}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a category for team registration" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.gender} {category.division} {category.ageGroup} ({category.skillLevel?.min}-{category.skillLevel?.max})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+            ) : (
+              <Alert className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>No Categories Added</AlertTitle>
+                <AlertDescription>
+                  Please add at least one category above before registering teams/players.
+                </AlertDescription>
+              </Alert>
+            )}
 
-              <div>
-                <h4 className="font-medium mb-2">
-                  {matchType === "Singles" ? "Player" : "Team"} List (
-                  {teams.length})
-                </h4>
-                {teams.length === 0 ? (
-                  <p className="text-muted-foreground">
-                    No {matchType === "Singles" ? "players" : "teams"} added yet
-                  </p>
-                ) : (
-                  <ul className="space-y-2 max-h-[300px] overflow-y-auto">
-                    {teams.map((team) => (
-                      <li
-                        key={team.id}
-                        className="flex items-center justify-between border p-3 rounded-md"
-                      >
-                        <div>
+            {selectedCategoryForTeam && (
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <TeamForm
+                    onAddTeam={handleAddTeam}
+                    renderAsForm={false}
+                    category={categories.find(cat => cat.id === selectedCategoryForTeam)}
+                  />
+
+                  <div className="mt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleAddDummyTeams}
+                    >
+                      Add Dummy {categories.find(cat => cat.id === selectedCategoryForTeam)?.division === "singles" ? "Players" : "Teams"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-medium mb-2">
+                    {categories.find(cat => cat.id === selectedCategoryForTeam)?.division === "singles" ? "Player" : "Team"} List (
+                    {teams.length})
+                  </h4>
+                  {teams.length === 0 ? (
+                    <p className="text-muted-foreground">
+                      No {categories.find(cat => cat.id === selectedCategoryForTeam)?.division === "singles" ? "players" : "teams"} added yet
+                    </p>
+                  ) : (
+                    <ul className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {teams.map((team) => (
+                        <li
+                          key={team.id}
+                          className="flex items-center justify-between border p-3 rounded-md"
+                        >
+                                                  <div>
                           <p className="font-medium">{team.name}</p>
                           {team.players && team.players.length > 0 && (
-                            <p className="text-sm text-muted-foreground">
-                              {team.players.join(" / ")}
-                            </p>
+                            <div className="text-sm text-muted-foreground">
+                              {team.players.map((player, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                  <span>{player}</span>
+                                  {team.playerDetails && team.playerDetails[index] && (
+                                    <>
+                                      <span className="text-xs">({team.playerDetails[index].gender})</span>
+                                      <span className="text-xs">Skill: {team.playerDetails[index].skillLevel}</span>
+                                      <span className="text-xs">Age: {team.playerDetails[index].ageGroup}</span>
+                                    </>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
                           )}
-                          {team.skillLevel && (
+                          {team.skillLevel && !team.players && (
                             <p className="text-sm text-muted-foreground">
                               Skill: {team.skillLevel}
                             </p>
                           )}
+                          {team.ageGroup && !team.players && (
+                            <p className="text-sm text-muted-foreground">
+                              Age: {team.ageGroup}
+                            </p>
+                          )}
                         </div>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleRemoveTeam(team.id)}
-                        >
-                          Remove
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleRemoveTeam(team.id)}
+                          >
+                            Remove
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="flex justify-end">

@@ -62,7 +62,7 @@ export default function TournamentBracketPage() {
     matchId: string,
     updatedMatch: Partial<Match>
   ) => {
-    if (!tournament || !currentUser === tournament?.createdBy) return;
+    if (!tournament || !(currentUser === tournament?.createdBy)) return;
 
     // Ensure completed flag is set if winner is set
     if (updatedMatch.winnerId !== undefined && updatedMatch.winnerId !== null) {

@@ -15,7 +15,6 @@ export function createTournament(
   tournament: Omit<Tournament, "id" | "createdAt">
 ): Tournament {
   const slug = createSlug(tournament.name);
-
   const newTournament: Tournament = {
     ...tournament,
     id: `tournament-${Date.now()}-${Math.random()

@@ -1,8 +1,15 @@
+export interface PlayerDetail {
+  skillLevel: string;
+  ageGroup: string;
+  gender: "Male" | "Female";
+}
+
 export interface Team {
   id: string;
   name: string;
   seed?: number;
   players?: string[]; // Player names for doubles teams
+  playerDetails?: PlayerDetail[]; // Individual player details for doubles teams
   skillLevel?: string; // Pickleball skill level (2.5, 3.0, 3.5, 4.0, 4.5, 5.0)
   ageGroup?: string; // Age group (19+, 35+, 50+, 65+)
   gender?: "Men" | "Women" | "Mixed"; // Gender category
@@ -57,6 +64,7 @@ export interface Tournament {
   name: string;
   description?: string;
   format: TournamentFormat;
+  categories: Category[];
   organizerId: string; // ID of the organizer who created this tournament
   createdAt: number;
   matches: Match[];
@@ -67,11 +75,9 @@ export interface Tournament {
   location?: string; // Venue location
   startDate?: string; // Tournament start date
   endDate?: string; // Tournament end date
-  division?: string; // Tournament division (e.g., "Men's 4.0 35+")
   pointsToWin?: number; // Points needed to win a game (11, 15, or 21)
   winBy?: number; // Points needed to win by (usually 1 or 2)
   bestOf?: number; // Number of games in the match
-  matchType?: "Singles" | "Doubles" | "Mixed Doubles"; // Default match type
   pools?: Pool[]; // For pool play format
   slug?: string; // URL-friendly slug for the tournament
   isStarted?: boolean; // Whether the tournament has been started
@@ -80,6 +86,15 @@ export interface Tournament {
   semiFinalGames?: number; // Number of games in semi finals
   finalGames?: number; // Number of games in finals
   knockoutBracketPopulated?: boolean; // Flag to track if knockout bracket has been populated
+}
+
+export interface Category {
+  id: string;
+  gender: "Mens" | "Womens" | "mixed";
+  division: "singles" | "doubles";
+  skillLevel?: { min?: number; max?: number };
+  ageGroup?: string; // e.g., "19+", "35+", "50+", "65+"
+  seedingMethod: "Random" | "Ranking_Based";
 }
 
 export interface User {

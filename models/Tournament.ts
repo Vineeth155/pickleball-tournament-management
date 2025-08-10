@@ -47,6 +47,29 @@ const PoolSchema = new Schema({
   teams: [TeamSchema],
 });
 
+const CategorySchema = new Schema({
+  id: { type: String },
+  matchType: {
+    type: String,
+    enum: [
+      "Men's Singles",
+      "Men's Doubles",
+      "Women's Singles",
+      "Women's Doubles",
+      "Mixed Doubles",
+    ],
+  },
+  skillLevel: {
+    min: { type: Number },
+    max: { type: Number },
+  },
+  ageGroup: { type: String },
+  seedingMethod: {
+    type: String,
+    enum: ["Random", "Ranking_Based"],
+  }
+});
+
 const TournamentSchema = new Schema({
   id: String,
   name: String,
@@ -61,6 +84,16 @@ const TournamentSchema = new Schema({
     ],
   },
   createdAt: Number,
+  categories: { 
+    type: [CategorySchema],
+    validate: {
+      validator: (v: any) => {
+        console.log(v.length);
+        return v.length > 0;
+      },
+      message: "At least one category is required"
+    }
+  },
   matches: [MatchSchema],
   totalRounds: Number,
   totalWinnerRounds: Number,
