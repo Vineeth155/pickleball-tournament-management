@@ -2252,159 +2252,83 @@ export default function TournamentBracket({
                 >
                   <div className="flex space-x-6 min-w-max pb-6">
                     {/* Only show rounds that have matches */}
-                    {Array.from(
-                      new Set(
-                        matchesByPool[activePool]?.map(
-                          (match) => match.round
-                        ) || []
-                      )
-                    )
-                      .sort((a, b) => a - b)
-                      .map((roundIndex) => {
-                        const roundMatches =
-                          matchesByPool[activePool]?.filter(
-                            (match) => match.round === roundIndex
-                          ) || [];
-
-                        return (
-                          <div key={roundIndex} className="flex-shrink-0 w-72">
-                            <div className="flex justify-between items-center mb-4">
-                              <h3 className="text-xl font-semibold">
-                                Round {roundIndex + 1}
-                              </h3>
-                              {currentUser === tournament?.createdBy && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() =>
-                                    openAddMatchDialog(roundIndex, activePool)
-                                  }
-                                  className="flex items-center gap-1"
-                                >
-                                  <Plus className="h-4 w-4" />
-                                  Add Match
-                                </Button>
-                              )}
-                            </div>
-                            <div className="space-y-4">
-                              {roundMatches.map((match) => {
-                                const team1 = getTeam(match.team1Id);
-                                const team2 = getTeam(match.team2Id);
-                                const ready = isMatchReady(match);
-                                const completed = isMatchCompleted(match);
-
-                                return (
-                                  <div
-                                    key={match.id}
-                                    className="relative"
-                                    data-match-id={match.id}
-                                  >
-                                    {currentUser === tournament?.createdBy && (
-                                      <div className="absolute -top-2 -right-2 z-10 flex gap-1">
-                                        {!completed && (
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            className="bg-white dark:bg-gray-800"
-                                            onClick={() =>
-                                              openAssignDialog(match)
-                                            }
-                                          >
-                                            Assign Teams
-                                          </Button>
-                                        )}
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="bg-white dark:bg-gray-800 text-red-500 hover:text-red-700"
-                                          onClick={() =>
-                                            openDeleteMatchDialog(match)
-                                          }
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    )}
-                                    <MatchCard
-                                      match={match}
-                                      team1={team1}
-                                      team2={team2}
-                                      onUpdateMatch={(matchId, updates) =>
-                                        handleUpdateMatch(matchId, updates)
-                                      }
-                                      ready={ready}
-                                      completed={completed}
-                                      currentUser={
-                                        currentUser
-                                          ? currentUser ===
-                                            tournament?.createdBy
-                                          : false
-                                      }
-                                      pointsToWin={tournament.pointsToWin}
-                                      winBy={tournament.winBy}
-                                      bestOf={match.bestOf || 1}
-                                      tournamentId={tournament.id}
-                                    />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                    {/* Add Round button for admins */}
-                    {currentUser === tournament?.createdBy && (
-                      <div className="flex-shrink-0 w-72">
-                        <div className="flex justify-center items-center h-full">
+                    <div className="flex-shrink-0 w-72">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-semibold">Matches</h3>
+                        {currentUser === tournament?.createdBy && (
                           <Button
+                            size="sm"
                             variant="outline"
-                            onClick={() => {
-                              const nextRound =
-                                Math.max(
-                                  0,
-                                  ...Array.from(
-                                    new Set(
-                                      matchesByPool[activePool]?.map(
-                                        (match) => match.round
-                                      ) || [0]
-                                    )
-                                  )
-                                ) + 1;
-                              openAddMatchDialog(nextRound, activePool);
-                            }}
+                            onClick={() => openAddMatchDialog(0, activePool)}
                             className="flex items-center gap-1"
                           >
                             <Plus className="h-4 w-4" />
-                            Add New Round
+                            Add Match
                           </Button>
-                        </div>
+                        )}
                       </div>
-                    )}
+                      <div className="space-y-4">
+                        {matchesByPool[activePool].map((match) => {
+                          const team1 = getTeam(match.team1Id);
+                          const team2 = getTeam(match.team2Id);
+                          const ready = isMatchReady(match);
+                          const completed = isMatchCompleted(match);
+
+                          return (
+                            <div
+                              key={match.id}
+                              className="relative"
+                              data-match-id={match.id}
+                            >
+                              {currentUser === tournament?.createdBy && (
+                                <div className="absolute -top-2 -right-2 z-10 flex gap-1">
+                                  {!completed && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="bg-white dark:bg-gray-800"
+                                      onClick={() => openAssignDialog(match)}
+                                    >
+                                      Assign Teams
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="bg-white dark:bg-gray-800 text-red-500 hover:text-red-700"
+                                    onClick={() => openDeleteMatchDialog(match)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
+                              <MatchCard
+                                match={match}
+                                team1={team1}
+                                team2={team2}
+                                onUpdateMatch={(matchId, updates) =>
+                                  handleUpdateMatch(matchId, updates)
+                                }
+                                ready={ready}
+                                completed={completed}
+                                currentUser={
+                                  currentUser
+                                    ? currentUser === tournament?.createdBy
+                                    : false
+                                }
+                                pointsToWin={tournament.pointsToWin}
+                                winBy={tournament.winBy}
+                                bestOf={match.bestOf || 1}
+                                tournamentId={tournament.id}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Add Round button for admins */}
                   </div>
-                  <BracketLines
-                    matchesByRound={
-                      matchesByPool[activePool]?.reduce((acc, match) => {
-                        const round = match.round;
-                        if (!acc[round]) acc[round] = [];
-                        acc[round].push(match);
-                        return acc;
-                      }, {} as Record<number, Match[]>) || {}
-                    }
-                    totalRounds={
-                      Math.max(
-                        ...Array.from(
-                          new Set(
-                            matchesByPool[activePool]?.map(
-                              (match) => match.round
-                            ) || [0]
-                          )
-                        )
-                      ) + 1
-                    }
-                    format={format}
-                    containerRef={bracketContainerRef}
-                  />
                 </div>
               ))}
           </TabsContent>
