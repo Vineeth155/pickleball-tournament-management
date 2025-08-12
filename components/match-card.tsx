@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import type { Match, Team } from "@/lib/types"
-import { Clock, MapPin, Trophy, ArrowLeft } from "lucide-react"
+import { Clock, MapPin, Trophy, ArrowLeft, ExternalLink } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import Link from "next/link"
 
 interface MatchCardProps {
   match: Match
@@ -180,18 +181,21 @@ export function MatchCard({
       <CardHeader className="p-4 bg-muted/50">
         <div className="flex justify-between items-center">
           <div className="text-sm font-medium">Match {match.position + 1}</div>
-          {match.court && (
-            <Badge variant="outline" className="flex items-center gap-1">
-              <MapPin className="h-3 w-3" />
-              {match.court}
-            </Badge>
-          )}
-          {match.scheduledTime && (
-            <Badge variant="outline" className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {match.scheduledTime}
-            </Badge>
-          )}
+          <div className="flex gap-2">
+
+            {match.court && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {match.court}
+              </Badge>
+            )}
+            {match.scheduledTime && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {match.scheduledTime}
+              </Badge>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-4">
@@ -276,10 +280,11 @@ export function MatchCard({
                 <span>Winner: {match.winnerId === match.team1Id ? team1?.name : team2?.name}</span>
               </div>
             )}
+
           </>
         )}
       </CardContent>
-      <CardFooter className="p-2 bg-muted/30 flex justify-center">
+      <CardFooter className="p-2 bg-muted/30 flex justify-center gap-2">
         {!isEditing && ready && !completed && currentUser && (
           <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
             Enter Score
@@ -290,6 +295,12 @@ export function MatchCard({
             Edit Score
           </Button>
         )}
+        <Link href={`/tournaments/${tournamentId}/match/${match.id}`}>
+          <Button variant="default" size="sm" className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white">
+            <ExternalLink className="h-3 w-3" />
+            View Match
+          </Button>
+        </Link>
       </CardFooter>
     </Card>
   )

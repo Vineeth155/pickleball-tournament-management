@@ -1628,6 +1628,8 @@ export default function TournamentBracket({
     );
   };
 
+
+
   // Mobile navigation for rounds
   const handlePreviousRound = () => {
     if (activeRound > 0) {
@@ -1652,6 +1654,8 @@ export default function TournamentBracket({
       <div className="space-y-8">
         {/* Winner Banner - only show when tournament is actually completed */}
         {isTournamentCompleted && <WinnerBanner />}
+
+
 
         <Tabs defaultValue="bracket" className="w-full">
           <TabsList className="mb-6">
@@ -2081,6 +2085,8 @@ export default function TournamentBracket({
       <div className="space-y-8">
         {/* Winner Banner */}
         <WinnerBanner />
+
+
 
         <Tabs defaultValue="pools" className="w-full">
           <TabsList className="mb-6">
@@ -2878,6 +2884,8 @@ export default function TournamentBracket({
     <div className="space-y-8">
       {/* Winner Banner */}
       {isTournamentCompleted && <WinnerBanner />}
+
+      
 
       {isMobile ? (
         <div className="space-y-4">

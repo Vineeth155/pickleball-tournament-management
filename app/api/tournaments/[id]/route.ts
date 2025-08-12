@@ -4,10 +4,11 @@ import Tournament from "@/models/Tournament";
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   await connectDB();
-  const tournament = await Tournament.findOne({ id: params.id });
+  const { id } = await params;
+  const tournament = await Tournament.findOne({ id });
   if (!tournament) {
     return NextResponse.json(
       { error: "Tournament not found" },
@@ -19,14 +20,15 @@ export async function GET(
 
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await req.json();
     await connectDB();
+    const { id } = await params;
 
     const updated = await Tournament.findOneAndUpdate(
-      { id: params.id }, // Match by your custom id field
+      { id }, // Match by your custom id field
       body,
       { new: true }
     );
@@ -50,10 +52,11 @@ export async function PUT(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   await connectDB();
-  const deleted = await Tournament.findOneAndDelete({ id: params.id });
+  const { id } = await params;
+  const deleted = await Tournament.findOneAndDelete({ id });
   if (!deleted) {
     return NextResponse.json(
       { error: "Tournament not found" },

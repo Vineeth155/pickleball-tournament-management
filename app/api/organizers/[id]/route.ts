@@ -4,12 +4,11 @@ import Organizer from "@/models/Organizer";
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   await connectDB();
-  const qpm = await params;
-  console.log("QPM", qpm);
-  const organizer = await Organizer.findOne({ organizerId: qpm.id });
+  const { id } = await params;
+  const organizer = await Organizer.findOne({ organizerId: id });
   if (!organizer) {
     return NextResponse.json({ error: "Organizer not found" }, { status: 404 });
   }
@@ -18,13 +17,14 @@ export async function GET(
 
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await req.json();
     await connectDB();
+    const { id } = await params;
 
-    const updated = await Organizer.findOneAndUpdate({ _id: params.id }, body, {
+    const updated = await Organizer.findOneAndUpdate({ _id: id }, body, {
       new: true,
     });
 
@@ -47,10 +47,11 @@ export async function PUT(
 
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   await connectDB();
-  const deleted = await Organizer.findOneAndDelete({ _id: params.id });
+  const { id } = await params;
+  const deleted = await Organizer.findOneAndDelete({ _id: id });
   if (!deleted) {
     return NextResponse.json({ error: "Organizer not found" }, { status: 404 });
   }
