@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth";
+import { getStoredUser } from "@/lib/auth";
+import { initializeTournaments } from "@/lib/tournament-store";
 import type { User } from "@/lib/types";
 import Image from "next/image";
 
@@ -12,7 +13,7 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // Load user from localStorage on initial render
+  // Load user and tournaments on initial render
   useEffect(() => {
     // Only run this effect once on mount
     if (!isLoaded) {
@@ -21,8 +22,8 @@ export default function Home() {
         setCurrentUser(user);
       }
 
-      // Load tournaments from localStorage
-      loadTournamentsFromLocalStorage();
+      // Initialize tournaments from database
+      initializeTournaments();
 
       setIsLoaded(true);
     }

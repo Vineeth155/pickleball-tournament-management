@@ -12,6 +12,9 @@ const OrganizerSchema = new Schema({
   password: { type: String, required: true },
   tournaments: [{ type: String }],
   createdAt: { type: Date, default: Date.now },
+  // Additional audit fields
+  updatedAt: { type: Date, default: Date.now },
+  updatedBy: String,
 });
 
 const Organizer = models.Organizer || model("Organizer", OrganizerSchema);

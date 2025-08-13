@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import type { Tournament, Team } from "@/lib/types";
+import type { Tournament, Team, Category, Match } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { ChevronUp, ChevronDown, Save, GripVertical } from "lucide-react";
 import type { User } from "next-auth";
@@ -38,7 +38,12 @@ interface TeamStats {
 
 // Update the component props to include the optional qualification handler
 interface StandingsTableProps {
-  tournament: Tournament;
+  tournament: Tournament | { 
+    categories: Category[];
+    teams?: Team[];
+    matches?: Match[];
+    pools?: any[];
+  };
   standings?: Array<{
     team: Team;
     played: number;
@@ -73,7 +78,28 @@ export default function StandingsTable({
   onUpdatePositions,
   forceUpdate = 0,
 }: StandingsTableProps) {
-  const { teams, matches } = tournament;
+  // Helper function to safely access tournament data
+  const getTournamentData = () => {
+    // Check if this is a category-based tournament
+    if ('categories' in tournament && tournament.categories?.length > 0) {
+      const firstCategory = tournament.categories[0];
+      return {
+        teams: firstCategory.teams || [],
+        matches: firstCategory.matches || [],
+        pools: firstCategory.pools || []
+      };
+    }
+    
+    // Fallback to direct tournament properties (for backward compatibility)
+    return {
+      teams: (tournament as any).teams || [],
+      matches: (tournament as any).matches || [],
+      pools: (tournament as any).pools || []
+    };
+  };
+
+  const { teams, matches, pools } = getTournamentData();
+  
   const [isEditingPositions, setIsEditingPositions] = useState(false);
   const [manualPositions, setManualPositions] = useState<
     Record<string, number>
@@ -89,7 +115,7 @@ export default function StandingsTable({
     const initialPositions: Record<string, number> = {};
 
     if (externalStandings) {
-      externalStandings.forEach((standing, index) => {
+      externalStandings.forEach((standing, index: number) => {
         if (standing.team.manualPosition !== undefined) {
           initialPositions[standing.team.id] = standing.team.manualPosition;
         } else {
@@ -98,7 +124,7 @@ export default function StandingsTable({
         }
       });
     } else {
-      teams.forEach((team, index) => {
+      teams.forEach((team, index: number) => {
         if (team.manualPosition !== undefined) {
           initialPositions[team.id] = team.manualPosition;
         } else {
@@ -167,7 +193,7 @@ export default function StandingsTable({
     });
 
     // Calculate stats from completed matches
-    matches.forEach((match) => {
+    matches.forEach((match: Match) => {
       // Skip if either team ID is missing or if the team doesn't exist in stats
       if (
         !match.team1Id ||
@@ -200,11 +226,11 @@ export default function StandingsTable({
           // Add game wins/losses if detailed game scores are available
           if (match.team1Games && match.team2Games) {
             const validGames = match.team1Games.filter(
-              (score, i) =>
+              (score: number, i: number) =>
                 score > 0 || (match.team2Games && match.team2Games[i] > 0)
             );
 
-            validGames.forEach((score, i) => {
+            validGames.forEach((score: number, i: number) => {
               const team1Score = score;
               const team2Score = match.team2Games ? match.team2Games[i] : 0;
 
@@ -238,72 +264,57 @@ export default function StandingsTable({
           }
         }
 
-        // Determine winner/loser
-        if (match.winnerId === match.team1Id) {
-          team1.wins++;
-          team1.points += 3;
-          team2.losses++;
-        } else if (match.winnerId === match.team2Id) {
-          team2.wins++;
-          team2.points += 3;
-          team1.losses++;
+        // Determine winner and update wins/losses
+        if (match.winnerId) {
+          if (match.winnerId === match.team1Id) {
+            team1.wins++;
+            team2.losses++;
+            team1.points += 3; // 3 points for a win
+          } else if (match.winnerId === match.team2Id) {
+            team2.wins++;
+            team1.losses++;
+            team2.points += 3; // 3 points for a win
+          }
         } else if (
           match.team1Score !== undefined &&
           match.team2Score !== undefined
         ) {
-          // If no winner but scores are set, check for a draw
-          if (match.team1Score === match.team2Score) {
+          // If no winner but scores exist, determine winner by score
+          if (match.team1Score > match.team2Score) {
+            team1.wins++;
+            team2.losses++;
+            team1.points += 3;
+          } else if (match.team2Score > match.team1Score) {
+            team2.wins++;
+            team1.losses++;
+            team2.points += 3;
+          } else {
+            // It's a draw
             team1.draws++;
             team2.draws++;
             team1.points += 1;
             team2.points += 1;
-          } else if (match.team1Score > match.team2Score) {
-            team1.wins++;
-            team1.points += 3;
-            team2.losses++;
-          } else {
-            team2.wins++;
-            team2.points += 3;
-            team1.losses++;
           }
         }
       }
     });
 
     // Calculate goal difference for each team
-    Object.values(stats).forEach((team) => {
-      team.goalDifference = team.goalsFor - team.goalsAgainst;
+    Object.values(stats).forEach((teamStat) => {
+      teamStat.goalDifference = teamStat.goalsFor - teamStat.goalsAgainst;
     });
 
-    // Convert to array and sort with comprehensive tiebreakers
-    const sortedStats = Object.values(stats).sort((a, b) => {
-      // If manual positions are set, use them first
-      if (
-        a.team.manualPosition !== undefined &&
-        b.team.manualPosition !== undefined
-      ) {
-        return a.team.manualPosition - b.team.manualPosition;
+    // Convert to array and sort by points, then goal difference, then goals for
+    return Object.values(stats).sort((a, b) => {
+      if (b.points !== a.points) {
+        return b.points - a.points;
       }
-
-      // If only one has a manual position, prioritize it
-      if (a.team.manualPosition !== undefined) return -1;
-      if (b.team.manualPosition !== undefined) return 1;
-
-      // Otherwise use the standard sorting criteria
-      if (a.points !== b.points) return b.points - a.points;
-      if (a.wins !== b.wins) return b.wins - a.wins;
-      if (a.goalDifference !== b.goalDifference)
+      if (b.goalDifference !== a.goalDifference) {
         return b.goalDifference - a.goalDifference;
-      if (a.gamesWon !== b.gamesWon) return b.gamesWon - a.gamesWon;
-      if (a.pointsWon !== b.pointsWon) return b.pointsWon - a.pointsWon;
-      if (a.goalsFor !== b.goalsFor) return b.goalsFor - a.goalsFor;
-      if (a.played !== b.played) return b.played - a.played;
-      // Final tiebreaker: Team ID for consistency
-      return a.team.id.localeCompare(b.team.id);
+      }
+      return b.goalsFor - a.goalsFor;
     });
-
-    return sortedStats;
-  }, [localTeams, matches, externalStandings, forceUpdate, positionChanges]);
+  }, [externalStandings, localTeams, matches]);
 
   // Apply manual positions from state
   const displayTeamStats = useMemo(() => {
@@ -563,24 +574,24 @@ export default function StandingsTable({
   // Format team name with skill level badge
   const formatTeamName = (team: Team, index: number, stats: TeamStats) => {
     // Check if this is a pool and if all matches are completed
-    const isPoolPlay = tournament.pools && tournament.pools.length > 0;
+    const isPoolPlay = pools && pools.length > 0;
     const poolId =
       team.poolId ||
       (isPoolPlay
-        ? tournament.pools?.find((p) => p.teams.some((t) => t.id === team.id))
+        ? pools?.find((p: any) => p.teams.some((t: any) => t.id === team.id))
             ?.id
         : undefined);
 
     // If this is pool play, check if all matches in this pool are completed
     const allPoolMatchesCompleted =
       isPoolPlay && poolId !== undefined
-        ? tournament.matches
+        ? matches
             .filter(
-              (m) =>
+              (m: any) =>
                 m.poolId !== undefined &&
                 m.poolId.toString() === poolId.toString()
             )
-            .every((m) => m.winnerId !== null)
+            .every((m: any) => m.winnerId !== null)
         : false;
 
     // Show "Advances" badge if team is qualified

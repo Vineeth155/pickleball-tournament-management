@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth";
+import { getStoredUser } from "@/lib/auth";
+import { initializeTournaments } from "@/lib/tournament-store";
 import {
   getTournamentByIdFromDB,
   getTournamentsFromDB,
@@ -27,8 +28,8 @@ export default function TournamentBracketPage() {
         setCurrentUser(user);
       }
 
-      // Load tournaments from localStorage
-      loadTournamentsFromLocalStorage();
+      // Initialize tournaments from database
+      initializeTournaments();
 
       // Find tournament by slug
       const slug = params?.id as string;

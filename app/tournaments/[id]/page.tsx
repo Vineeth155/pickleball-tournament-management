@@ -11,7 +11,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth";
+import { getStoredUser } from "@/lib/auth";
+import { initializeTournaments } from "@/lib/tournament-store";
 import {
   getTournamentByIdFromDB,
   getTournamentsFromDB,
@@ -27,17 +28,19 @@ import {
   ChevronRight,
   Play,
   AlertCircle,
+  Trophy,
+  Target,
+  Clock,
 } from "lucide-react";
-import TeamRegistrationForm from "@/components/team-registration-form";
-import { generateBracket } from "@/lib/bracket-utils";
+import { generateBracket, generateBracketsForTournament, validateGeneratedBrackets } from "@/lib/bracket-utils";
 import Image from "next/image";
+
 
 export default function TournamentDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [tournament, setTournament] = useState<Tournament | null>(null);
-  const [showRegistrationForm, setShowRegistrationForm] = useState(false);
   const [startingTournament, setStartingTournament] = useState(false);
 
   // Load user and tournament from localStorage on initial render
@@ -49,7 +52,7 @@ export default function TournamentDetailsPage() {
       }
 
       // Load tournaments from localStorage
-      loadTournamentsFromLocalStorage();
+      initializeTournaments();
 
       // Find tournament by slug
       const slug = params?.id as string;
@@ -70,8 +73,16 @@ export default function TournamentDetailsPage() {
     fetchTournament();
   }, [params, router]);
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString();
+  const formatDate = (timestamp: number | Date | string) => {
+    let date: Date;
+    if (typeof timestamp === 'string') {
+      date = new Date(timestamp);
+    } else if (typeof timestamp === 'number') {
+      date = new Date(timestamp);
+    } else {
+      date = timestamp;
+    }
+    return date.toLocaleDateString();
   };
 
   const getFormatLabel = (format: TournamentFormat) => {
@@ -104,6 +115,35 @@ export default function TournamentDetailsPage() {
     }
   };
 
+  const getGenderLabel = (gender: string) => {
+    switch (gender) {
+      case "Mens":
+        return "Men's";
+      case "Womens":
+        return "Women's";
+      case "mixed":
+        return "Mixed";
+      default:
+        return gender;
+    }
+  };
+
+  const getDivisionLabel = (division: string) => {
+    return division.charAt(0).toUpperCase() + division.slice(1);
+  };
+
+  const getSkillLevelLabel = (skillLevel: { min?: number; max?: number }) => {
+    if (!skillLevel) return "Any Level";
+    if (skillLevel.min && skillLevel.max) {
+      return `${skillLevel.min}.0 - ${skillLevel.max}.0`;
+    } else if (skillLevel.min) {
+      return `${skillLevel.min}.0+`;
+    } else if (skillLevel.max) {
+      return `Up to ${skillLevel.max}.0`;
+    }
+    return "Any Level";
+  };
+
   // Helper function to create a URL-friendly slug
   const createSlug = (name: string) => {
     return name
@@ -113,60 +153,234 @@ export default function TournamentDetailsPage() {
       .replace(/-+/g, "-");
   };
 
+  // Calculate total teams across all categories
+  const getTotalTeams = () => {
+    if (!tournament?.categories) return 0;
+    return tournament.categories.reduce((total, category) => {
+      return total + (category.teams?.length || 0);
+    }, 0);
+  };
+
+  // Helper function to get current date in IST timezone as string
+  const getCurrentDateIST = (): string => {
+    return new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+  };
+
   // Start the tournament - generate bracket with current teams
   const handleStartTournament = async () => {
-    if (!tournament || !currentUser === tournament?.createdBy) return;
+    if (!tournament || !(currentUser === tournament?.createdBy)) return;
+
+    // Check if tournament is already started
+    if (tournament.isStarted) {
+      alert("Tournament has already been started. You can view the brackets or edit existing matches.");
+      return;
+    }
 
     setStartingTournament(true);
 
     try {
-      // Generate a new bracket with the current teams
-      const updatedTournament = generateBracket(
-        tournament.teams,
-        tournament.name,
-        tournament.format,
-        tournament.description,
-        tournament.createdBy,
-        {
-          enablePoolPlay: true,
-          earlyRoundGames: tournament.earlyRoundGames || 1,
-          quarterFinalGames: tournament.quarterFinalGames || 3,
-          semiFinalGames: tournament.semiFinalGames || 3,
-          finalGames: tournament.finalGames || 3,
-        }
+      // Check if all categories have teams
+      const categoriesWithTeams = tournament.categories.filter(cat => 
+        cat.teams && cat.teams.length > 0
       );
+      
+      if (categoriesWithTeams.length === 0) {
+        alert("Cannot start tournament: No categories have teams registered.");
+        return;
+      }
 
+      // Validate tournament configuration
+      if (!tournament.categories || tournament.categories.length === 0) {
+        alert("Cannot start tournament: Tournament must have at least one category configured.");
+        return;
+      }
+      
+      // Check if tournament has a start date
+      if (!tournament.startDate) {
+        alert("Cannot start tournament: Tournament must have a start date configured.");
+        return;
+      }
+      
+      // Check if start date is in the future
+      const startDate = new Date(tournament.startDate);
+      const now = new Date();
+      if (startDate < now) {
+        alert("Cannot start tournament: Start date must be in the future.");
+        return;
+      }
+      
+      // Check if tournament has a location
+      if (!tournament.location || tournament.location.trim() === "") {
+        alert("Cannot start tournament: Tournament must have a location configured.");
+        return;
+      }
+
+      // Check if any category has insufficient teams for the format
+      for (const category of categoriesWithTeams) {
+        const minTeams = getMinimumTeamsForFormat(category.format);
+        if (category.teams!.length < minTeams) {
+          alert(`Cannot start tournament: Category ${category.gender} ${category.division} needs at least ${minTeams} teams, but only has ${category.teams!.length}.`);
+          return;
+        }
+        
+        // Additional validation for specific formats
+        if (category.format === TournamentFormat.POOL_PLAY && category.numberOfPools) {
+          const teamsPerPool = Math.ceil(category.teams!.length / category.numberOfPools);
+          if (teamsPerPool < 2) {
+            alert(`Cannot start tournament: Category ${category.gender} ${category.division} has too many pools (${category.numberOfPools}) for ${category.teams!.length} teams. Each pool needs at least 2 teams.`);
+            return;
+          }
+        }
+        
+        // Validate team configuration
+        if (category.teams) {
+          for (const team of category.teams) {
+            if (!team.name || team.name.trim() === "") {
+              alert(`Cannot start tournament: Team in category ${category.gender} ${category.division} has an invalid name.`);
+              return;
+            }
+          }
+        }
+      }
+
+      // Generate brackets for all categories
+      console.log("Generating brackets for tournament categories...");
+      
+      // Show progress to user
+      if (categoriesWithTeams.length > 1) {
+        console.log(`Generating brackets for ${categoriesWithTeams.length} categories...`);
+      }
+      
+      const updatedTournament = generateBracketsForTournament(tournament);
+      
+      // Validate that brackets were generated successfully
+      const validation = validateGeneratedBrackets(updatedTournament);
+      if (!validation.isValid) {
+        console.error("Bracket validation failed:", validation.errors);
+        throw new Error(`Bracket generation failed: ${validation.errors.join(', ')}`);
+      }
+      
+      if (!updatedTournament.categories || updatedTournament.categories.length === 0) {
+        throw new Error("Failed to generate brackets for tournament categories");
+      }
+      
+      // Check that matches were generated for each category
+      let totalMatches = 0;
+      for (const category of updatedTournament.categories) {
+        if (!category.matches || category.matches.length === 0) {
+          console.warn(`No matches generated for category: ${category.gender} ${category.division}`);
+        } else {
+          totalMatches += category.matches.length;
+          console.log(`Generated ${category.matches.length} matches for ${category.gender} ${category.division}`);
+        }
+      }
+      
+      console.log(`Total matches generated: ${totalMatches}`);
+      
+      // Final validation - ensure all categories have valid round configurations
+      const categoriesWithInvalidRounds = updatedTournament.categories.filter(
+        cat => !cat.totalRounds || cat.totalRounds < 1
+      );
+      
+      if (categoriesWithInvalidRounds.length > 0) {
+        throw new Error("Generated tournament has invalid round configuration");
+      }
+      
+      // Validate that all categories have matches
+      const categoriesWithoutMatches = updatedTournament.categories.filter(
+        cat => !cat.matches || cat.matches.length === 0
+      );
+      
+      if (categoriesWithoutMatches.length > 0) {
+        console.warn("Some categories have no matches generated:", 
+          categoriesWithoutMatches.map(cat => `${cat.gender} ${cat.division}`)
+        );
+      }
+      
       // Preserve other tournament properties
       const finalTournament = {
         ...updatedTournament,
         id: tournament.id,
-        createdAt: tournament.createdAt,
+        createdAt: tournament.createdAt, // Keep as string
+        organizerId: tournament.organizerId || tournament.createdBy, // Ensure organizerId is set
         location: tournament.location,
         startDate: tournament.startDate,
-        division: tournament.division,
-        pointsToWin: tournament.pointsToWin,
-        winBy: tournament.winBy,
-        matchType: tournament.matchType,
         slug: tournament.slug,
         isStarted: true, // Mark as started
+        updatedAt: getCurrentDateIST(), // Use IST timezone string
+        updatedBy: currentUser, // Track who started the tournament
       };
+      
+      // Log the final tournament configuration for debugging
+      console.log("Final tournament configuration:", {
+        id: finalTournament.id,
+        name: finalTournament.name,
+        categories: finalTournament.categories.length,
+        categoryRounds: finalTournament.categories.map(cat => ({
+          gender: cat.gender,
+          division: cat.division,
+          totalRounds: cat.totalRounds,
+          matches: cat.matches?.length || 0,
+          knockoutBracketPopulated: cat.knockoutBracketPopulated
+        })),
+        isStarted: finalTournament.isStarted
+      });
 
-      // Update the tournament
+      // Update the tournament in the database
+      console.log("Updating tournament in database...");
       await updateTournamentInDB(finalTournament);
+      
+      // Update local state
       setTournament(finalTournament);
+      console.log("Tournament updated successfully in local state");
 
       // Show success message
+      const categoryCount = updatedTournament.categories.length;
+      const formatNames = categoriesWithTeams.map(cat => getFormatLabel(cat.format)).join(", ");
+      
       alert(
-        "Tournament has been started! The bracket has been generated with the current teams."
+        `Tournament has been started successfully!\n\n` +
+        `Generated brackets for ${categoryCount} categories with ${totalMatches} total matches.\n\n` +
+        `Tournament formats: ${formatNames}\n\n` +
+        `You can now view the brackets and manage matches.`
       );
 
       // Redirect to bracket page
-      router.push(`/${params?.id}/bracket`);
+      console.log("Redirecting to bracket page...");
+      router.push(`/tournaments/${params?.id}/bracket`);
     } catch (error) {
       console.error("Error starting tournament:", error);
-      alert("There was an error starting the tournament. Please try again.");
+      
+      // Provide more specific error messages
+      let errorMessage = "There was an error starting the tournament. Please try again.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes("Failed to generate brackets")) {
+          errorMessage = "Failed to generate tournament brackets. Please check your tournament configuration and try again.";
+        } else if (error.message.includes("database") || error.message.includes("update")) {
+          errorMessage = "Failed to save tournament updates. Please check your connection and try again.";
+        }
+      }
+      
+      alert(errorMessage);
     } finally {
       setStartingTournament(false);
+    }
+  };
+
+  // Helper function to get minimum teams required for each format
+  const getMinimumTeamsForFormat = (format: TournamentFormat): number => {
+    switch (format) {
+      case TournamentFormat.SINGLE_ELIMINATION:
+        return 2;
+      case TournamentFormat.DOUBLE_ELIMINATION:
+        return 4;
+      case TournamentFormat.ROUND_ROBIN:
+        return 3;
+      case TournamentFormat.POOL_PLAY:
+        return 4;
+      default:
+        return 2;
     }
   };
 
@@ -194,10 +408,6 @@ export default function TournamentDetailsPage() {
           <div className="mb-6">
             <div className="flex flex-wrap items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold">{tournament.name}</h1>
-              <Badge className={getFormatColor(tournament.format)}>
-                {getFormatLabel(tournament.format)}
-              </Badge>
-
               {tournament.isStarted && (
                 <Badge
                   variant="outline"
@@ -221,7 +431,11 @@ export default function TournamentDetailsPage() {
               </div>
               <div className="flex items-center">
                 <Users className="mr-1 h-4 w-4" />
-                {tournament.teams.length} Teams
+                {tournament.categories.length} Categories
+              </div>
+              <div className="flex items-center">
+                <Trophy className="mr-1 h-4 w-4" />
+                {getTotalTeams()} Total Teams
               </div>
               {tournament.location && (
                 <div className="flex items-center">
@@ -244,47 +458,16 @@ export default function TournamentDetailsPage() {
               <h2>About This Tournament</h2>
               <p>
                 {tournament.description ||
-                  `This is a ${getFormatLabel(tournament.format)} tournament. 
-                  ${
-                    tournament.format === TournamentFormat.POOL_PLAY
-                      ? "Teams will be divided into pools for round-robin play, followed by a knockout stage for top teams."
-                      : tournament.format === TournamentFormat.ROUND_ROBIN
-                      ? "Each team will play against every other team in the tournament."
-                      : tournament.format ===
-                        TournamentFormat.DOUBLE_ELIMINATION
-                      ? "Teams will have a second chance after their first loss."
-                      : "Teams will be eliminated after a single loss."
-                  }`}
+                  `This tournament features ${tournament.categories.length} categories with different skill levels, age groups, and divisions. Each category will be played according to its specific format and rules.`}
               </p>
-
-              {tournament.division && (
-                <>
-                  <h3>Division</h3>
-                  <p>{tournament.division}</p>
-                </>
-              )}
 
               <h3>Tournament Details</h3>
               <ul>
                 <li>
-                  <strong>Format:</strong> {getFormatLabel(tournament.format)}
+                  <strong>Categories:</strong> {tournament.categories.length}
                 </li>
                 <li>
-                  <strong>Match Type:</strong>{" "}
-                  {tournament.matchType || "Standard"}
-                </li>
-                {tournament.pointsToWin && (
-                  <li>
-                    <strong>Points to Win:</strong> {tournament.pointsToWin}
-                  </li>
-                )}
-                {tournament.bestOf && tournament.bestOf > 1 && (
-                  <li>
-                    <strong>Match Format:</strong> Best of {tournament.bestOf}
-                  </li>
-                )}
-                <li>
-                  <strong>Teams:</strong> {tournament.teams.length}
+                  <strong>Total Teams:</strong> {getTotalTeams()}
                 </li>
                 {tournament.startDate && (
                   <li>
@@ -314,7 +497,7 @@ export default function TournamentDetailsPage() {
                 <Button
                   onClick={handleStartTournament}
                   className="bg-green-600 hover:bg-green-700"
-                  disabled={startingTournament || tournament.teams.length < 2}
+                  disabled={startingTournament || getTotalTeams() < 2}
                 >
                   <Play className="mr-2 h-4 w-4" />
                   {startingTournament
@@ -341,80 +524,92 @@ export default function TournamentDetailsPage() {
           </div>
         </div>
 
+
+
         <div>
           <Card>
             <CardHeader>
-              <CardTitle>Tournament Registration</CardTitle>
+              <CardTitle>Tournament Categories</CardTitle>
               <CardDescription>
-                Register your team to participate in this tournament
+                {tournament.categories.length} categories available for registration
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {tournament.isStarted ? (
-                <div className="p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md">
-                  <p className="text-amber-800 dark:text-amber-200">
-                    Registration is closed. The tournament has already started.
-                  </p>
-                </div>
-              ) : showRegistrationForm ? (
-                <TeamRegistrationForm
-                  tournament={tournament}
-                  onCancel={() => setShowRegistrationForm(false)}
-                  onSubmit={(team) => {
-                    // Add team to tournament
-                    const updatedTeams = [...tournament.teams, team];
-                    const updatedTournament = {
-                      ...tournament,
-                      teams: updatedTeams,
-                    };
-                    updateTournamentInDB(updatedTournament);
-                    setTournament(updatedTournament);
-                    setShowRegistrationForm(false);
-                  }}
-                />
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Join this tournament by registering your team. Fill out the
-                    registration form with your team details.
-                  </p>
-                  <Button
-                    className="w-full"
-                    onClick={() => setShowRegistrationForm(true)}
-                  >
-                    Register Team
-                  </Button>
-                </div>
-              )}
+              <div className="space-y-4">
+                {tournament.categories.map((category) => (
+                  <div key={category.id} className="p-4 border rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-lg">
+                        {getGenderLabel(category.gender)} {getDivisionLabel(category.division)}
+                      </h3>
+                      <Badge className={getFormatColor(category.format)}>
+                        {getFormatLabel(category.format)}
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-2 text-sm">
+                                             <div className="flex items-center gap-2">
+                         <Target className="h-4 w-4 text-muted-foreground" />
+                         <span>Skill Level: {getSkillLevelLabel(category.skillLevel || {})}</span>
+                       </div>
+                      
+                      {category.ageGroup && (
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span>Age Group: {category.ageGroup}</span>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span>{category.teams?.length || 0} Teams Registered</span>
+                      </div>
+                    </div>
+
+                    {category.pointsToWin && (
+                      <div className="mt-3 pt-3 border-t">
+                        <div className="text-sm text-muted-foreground">
+                          <strong>Game Rules:</strong> {category.pointsToWin} points to win
+                          {category.winBy && category.winBy > 1 && `, win by ${category.winBy}`}
+                          {category.bestOf && category.bestOf > 1 && `, best of ${category.bestOf}`}
+                        </div>
+                      </div>
+                    )}
+
+
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
 
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle>Registered Teams</CardTitle>
+              <CardTitle>Registration Status</CardTitle>
               <CardDescription>
-                {tournament.teams.length} teams have registered
+                Overall tournament registration information
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {tournament.teams.length > 0 ? (
-                <ul className="space-y-2">
-                  {tournament.teams.map((team) => (
-                    <li key={team.id} className="p-2 border rounded-md">
-                      <div className="font-medium">{team.name}</div>
-                      {team.players && team.players.length > 0 && (
-                        <div className="text-xs text-muted-foreground">
-                          {team.players.join(" / ")}
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  No teams have registered yet. Be the first to join!
-                </p>
-              )}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span>Total Categories:</span>
+                  <Badge variant="outline">{tournament.categories.length}</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Total Teams:</span>
+                  <Badge variant="outline">{getTotalTeams()}</Badge>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Tournament Status:</span>
+                  <Badge 
+                    variant={tournament.isStarted ? "default" : "secondary"}
+                    className={tournament.isStarted ? "bg-green-100 text-green-800" : ""}
+                  >
+                    {tournament.isStarted ? "Started" : "Not Started"}
+                  </Badge>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -422,3 +617,4 @@ export default function TournamentDetailsPage() {
     </main>
   );
 }
+

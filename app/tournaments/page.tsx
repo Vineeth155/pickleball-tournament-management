@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { getStoredUser, loadTournamentsFromLocalStorage } from "@/lib/auth";
+import { getStoredUser } from "@/lib/auth";
+import { initializeTournaments } from "@/lib/tournament-store";
 import TournamentList from "@/components/tournament-list";
 import type { User } from "@/lib/types";
 
@@ -14,7 +15,7 @@ export default function TournamentsPage() {
 
   // Load user from localStorage on initial render
   useEffect(() => {
-    loadTournamentsFromLocalStorage();
+          initializeTournaments();
   }, []);
   useEffect(() => {
     if (!hasInitialized) {

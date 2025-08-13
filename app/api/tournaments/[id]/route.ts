@@ -7,7 +7,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   await connectDB();
-  const tournament = await Tournament.findOne({ id: params.id });
+  const awaitParams = await params;
+  const tournament = await Tournament.findOne({ id: awaitParams.id });
   if (!tournament) {
     return NextResponse.json(
       { error: "Tournament not found" },
@@ -24,9 +25,9 @@ export async function PUT(
   try {
     const body = await req.json();
     await connectDB();
-
+    const awaitParams = await params;
     const updated = await Tournament.findOneAndUpdate(
-      { id: params.id }, // Match by your custom id field
+      { id: awaitParams.id }, // Match by your custom id field
       body,
       { new: true }
     );

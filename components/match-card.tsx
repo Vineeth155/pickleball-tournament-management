@@ -5,6 +5,13 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import type { Match, Team } from "@/lib/types"
 import { Clock, MapPin, Trophy, ArrowLeft } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
@@ -38,6 +45,8 @@ export function MatchCard({
 }: MatchCardProps) {
   const { toast } = useToast()
   const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [showEditConfirm, setShowEditConfirm] = useState(false)
   const [team1Score, setTeam1Score] = useState<number | undefined>(match.team1Score)
   const [team2Score, setTeam2Score] = useState<number | undefined>(match.team2Score)
   const [team1Games, setTeam1Games] = useState<number[]>(match.team1Games || Array(bestOf).fill(0))
@@ -93,8 +102,14 @@ export function MatchCard({
     return null
   }
 
+  // Check if match is tied (same number of games won)
+  const isMatchTied = () => {
+    const { team1Wins, team2Wins } = calculateGamesWon(team1Games, team2Games)
+    return team1Wins === team2Wins && team1Wins > 0
+  }
+
   // Handle saving the match score
-  const handleSaveScore = () => {
+  const handleSaveScore = async () => {
     if (!team1 || !team2) return
 
     // Validate that at least one game has scores
@@ -109,36 +124,105 @@ export function MatchCard({
       return
     }
 
-    // Calculate total scores
-    const totalTeam1Score = calculateTotalScore(team1Games)
-    const totalTeam2Score = calculateTotalScore(team2Games)
+    // Set loading state
+    setIsSaving(true)
 
-    // Determine winner
-    const winnerId = determineWinner()
+    try {
+      // Calculate total scores
+      const totalTeam1Score = calculateTotalScore(team1Games)
+      const totalTeam2Score = calculateTotalScore(team2Games)
 
-    // Create the updated match object
-    const updatedMatch: Partial<Match> = {
-      team1Score: totalTeam1Score,
-      team2Score: totalTeam2Score,
-      team1Games: team1Games,
-      team2Games: team2Games,
-      team1TotalPoints: totalTeam1Score,
-      team2TotalPoints: totalTeam2Score,
-      winnerId: winnerId,
-      completed: true,
+      // Determine winner
+      const winnerId = determineWinner()
+
+      // Create the updated match object
+      const updatedMatch: Partial<Match> = {
+        team1Score: totalTeam1Score,
+        team2Score: totalTeam2Score,
+        team1Games: team1Games,
+        team2Games: team2Games,
+        team1TotalPoints: totalTeam1Score,
+        team2TotalPoints: totalTeam2Score,
+      }
+
+      // Check if match is tied
+      const isTied = isMatchTied()
+      
+      // Only set winner and completed if there's a clear winner
+      if (winnerId) {
+        updatedMatch.winnerId = winnerId
+        updatedMatch.completed = true
+      } else if (isTied) {
+        // If match is tied, mark as completed with "tied" as winnerId
+        updatedMatch.winnerId = "tied"
+        updatedMatch.completed = true
+      } else {
+        // If no clear winner and not tied, reset the match to incomplete
+        updatedMatch.winnerId = undefined
+        updatedMatch.completed = false
+      }
+
+      // Update the match
+      await onUpdateMatch(match.id, updatedMatch)
+
+      // Exit editing mode
+      setIsEditing(false)
+
+      // Show success toast with appropriate message
+      if (winnerId && winnerId !== "tied") {
+        const winnerName = winnerId === match.team1Id ? team1?.name : team2?.name
+        toast({
+          title: "Score Saved Successfully! 🏆",
+          description: `${winnerName} wins the match!`,
+          duration: 5000,
+        })
+
+        // Show winner banner
+        toast({
+          title: "🎉 Match Complete!",
+          description: `${winnerName} is the winner!`,
+          duration: 8000,
+        })
+      } else if (isTied) {
+        toast({
+          title: "Score Saved Successfully! 🤝",
+          description: "Match ended in a tie!",
+          duration: 5000,
+        })
+
+        // Show tie banner
+        toast({
+          title: "🤝 Match Complete!",
+          description: "The match ended in a tie!",
+          duration: 8000,
+        })
+      } else {
+        toast({
+          title: "Score Saved Successfully!",
+          description: "Match scores have been updated.",
+          duration: 3000,
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error Saving Score",
+        description: "Failed to save the match score. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
     }
+  }
 
-    // Update the match
-    onUpdateMatch(match.id, updatedMatch)
-
-    // Exit editing mode
-    setIsEditing(false)
-
-    // Show success toast
-    toast({
-      title: "Score Updated",
-      description: "The match score has been successfully updated.",
-    })
+  // Handle starting edit mode
+  const handleStartEdit = () => {
+    if (completed && (match.winnerId === "tied" || match.winnerId)) {
+      // Show confirmation dialog for editing completed matches (winners or ties)
+      setShowEditConfirm(true)
+    } else {
+      // Start editing immediately for incomplete matches
+      setIsEditing(true)
+    }
   }
 
   // Handle canceling score entry
@@ -176,10 +260,13 @@ export function MatchCard({
 
   // Render the match card
   return (
-    <Card className={`overflow-hidden ${completed ? "border-green-500 dark:border-green-700" : ""}`}>
-      <CardHeader className="p-4 bg-muted/50">
+    <Card className={`overflow-hidden ${completed ? "border-green-500 dark:border-green-700" : ""} ${isEditing ? "border-blue-500 dark:border-blue-700 ring-2 ring-blue-200 dark:ring-blue-800" : ""}`}>
+      <CardHeader className={`p-4 ${isEditing ? "bg-blue-50 dark:bg-blue-950/20" : "bg-muted/50"}`}>
         <div className="flex justify-between items-center">
-          <div className="text-sm font-medium">Match {match.position + 1}</div>
+          <div className="text-sm font-medium">
+            {isEditing ? "✏️ Editing Match " : "Match "}{match.position + 1}
+            {completed && !isEditing && " ✅"}
+          </div>
           {match.court && (
             <Badge variant="outline" className="flex items-center gap-1">
               <MapPin className="h-3 w-3" />
@@ -229,12 +316,21 @@ export function MatchCard({
               </div>
             ))}
             <div className="flex justify-between mt-4">
-              <Button variant="outline" size="sm" onClick={handleCancelScore} className="flex items-center gap-1">
+              <Button variant="outline" size="sm" onClick={handleCancelScore} className="flex items-center gap-1" disabled={isSaving}>
                 <ArrowLeft className="h-4 w-4" />
                 Cancel
               </Button>
-              <Button onClick={handleSaveScore} size="sm">
-                Save Score
+              <Button onClick={handleSaveScore} size="sm" disabled={isSaving} className="flex items-center gap-1">
+                {isSaving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    💾 Save Score
+                  </>
+                )}
               </Button>
             </div>
           </div>
@@ -270,27 +366,76 @@ export function MatchCard({
                 )}
               </div>
             </div>
-            {match.winnerId && (
-              <div className="flex items-center justify-center gap-1 text-sm text-green-600 dark:text-green-400">
-                <Trophy className="h-4 w-4" />
-                <span>Winner: {match.winnerId === match.team1Id ? team1?.name : team2?.name}</span>
+            {match.winnerId && match.winnerId !== "tied" && (
+              <div className="mt-4 p-3 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                <div className="flex items-center justify-center gap-2 text-green-700 dark:text-green-300">
+                  <Trophy className="h-5 w-5 text-yellow-500" />
+                  <span className="font-semibold text-lg">
+                    🏆 {match.winnerId === match.team1Id ? team1?.name : team2?.name} Wins! 
+                  </span>
+                </div>
+                <div className="text-center text-sm text-green-600 dark:text-green-400 mt-1">
+                  Final Score: {match.team1Score} - {match.team2Score}
+                </div>
+              </div>
+            )}
+            {match.winnerId === "tied" && (
+              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-center gap-2 text-blue-700 dark:text-blue-300">
+                  <span className="text-2xl">🤝</span>
+                  <span className="font-semibold text-lg">
+                    Match is Tied! 🤝
+                  </span>
+                </div>
+                <div className="text-center text-sm text-blue-600 dark:text-blue-400 mt-1">
+                  Final Score: {match.team1Score} - {match.team2Score}
+                </div>
               </div>
             )}
           </>
         )}
       </CardContent>
-      <CardFooter className="p-2 bg-muted/30 flex justify-center">
+      <CardFooter className="p-2 bg-muted/30 flex justify-center gap-2">
         {!isEditing && ready && !completed && currentUser && (
-          <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-            Enter Score
+          <Button variant="outline" size="sm" onClick={handleStartEdit} className="flex items-center gap-1">
+            📝 Enter Score
           </Button>
         )}
         {!isEditing && completed && currentUser && (
-          <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-            Edit Score
+          <Button variant="outline" size="sm" onClick={handleStartEdit} className="flex items-center gap-1">
+            ✏️ Edit Score
           </Button>
         )}
+        {!isEditing && completed && (
+          <div className="text-xs text-muted-foreground text-center">
+            {match.winnerId === "tied" ? "Match ended in tie • Click Edit Score to modify" : "Match completed • Click Edit Score to modify"}
+          </div>
+        )}
       </CardFooter>
+
+      {/* Edit Confirmation Dialog */}
+      <Dialog open={showEditConfirm} onOpenChange={setShowEditConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Completed Match?</DialogTitle>
+            <DialogDescription>
+              This match has already been completed {match.winnerId === "tied" ? "in a tie" : "with a winner"}. Are you sure you want to edit the scores? 
+              This could affect the tournament bracket progression.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowEditConfirm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              setShowEditConfirm(false)
+              setIsEditing(true)
+            }}>
+              Yes, Edit Match
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

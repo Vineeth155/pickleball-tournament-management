@@ -2,8 +2,14 @@ import {
   type Team,
   type Tournament,
   type Match,
+  type Category,
   TournamentFormat,
 } from "./types";
+
+// Helper function to get current date in IST timezone as string
+function getCurrentDateIST(): string {
+  return new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+}
 
 interface BracketOptions {
   earlyRoundPoints?: number;
@@ -17,7 +23,7 @@ interface BracketOptions {
   finalGames?: number;
 }
 
-// Update the generateBracket function to ensure it respects the format
+// Update the generateBracket function to work with categories
 export function generateBracket(
   teams: Team[],
   name: string,
@@ -34,74 +40,222 @@ export function generateBracket(
     finalGames = 3,
   } = options;
 
-  // Only use pool play if explicitly requested via format or enablePoolPlay option
+  // Create a default category with the tournament configuration
+  const defaultCategory: Category = {
+    id: `category-${Date.now()}`,
+    gender: "Mens",
+    division: "doubles",
+    skillLevel: { min: 2.0, max: 8.0 },
+    ageGroup: "Open",
+    seedingMethod: "Random",
+    format: format,
+    totalRounds: 0, // Will be set after matches are generated
+    pointsToWin: 11,
+    winBy: 2,
+    bestOf: 1,
+    earlyRoundGames,
+    quarterFinalGames,
+    semiFinalGames,
+    finalGames,
+    earlyRoundPoints: 11,
+    quarterFinalPoints: 11,
+    semiFinalPoints: 11,
+    finalPoints: 11,
+    numberOfPools: 2,
+    teams: teams,
+    matches: [],
+    pools: [],
+    createdBy,
+    updatedBy: createdBy,
+  };
+
+  // Generate matches for the category based on format
   if (format === TournamentFormat.POOL_PLAY) {
-    return generatePoolPlayBracket(
-      teams,
-      name,
-      description,
-      createdBy,
-      options
-    );
+    defaultCategory.matches = generatePoolPlayMatches(teams, defaultCategory);
+    defaultCategory.pools = generatePools(teams, defaultCategory.numberOfPools || 2);
+  } else if (format === TournamentFormat.SINGLE_ELIMINATION) {
+    console.log("Generating SINGLE_ELIMINATION matches...");
+    defaultCategory.matches = generateSingleEliminationMatches(teams, defaultCategory);
+    console.log(`After generating matches: ${defaultCategory.matches.length} matches, totalRounds: ${defaultCategory.totalRounds}`);
+  } else if (format === TournamentFormat.DOUBLE_ELIMINATION) {
+    defaultCategory.matches = generateDoubleEliminationMatches(teams, defaultCategory);
+  } else if (format === TournamentFormat.ROUND_ROBIN) {
+    defaultCategory.matches = generateRoundRobinMatches(teams, defaultCategory);
   }
 
-  // For other formats, respect the user's choice
-  switch (format) {
-    case TournamentFormat.SINGLE_ELIMINATION:
-      return generateSingleEliminationBracket(
-        teams,
-        name,
-        description,
-        createdBy,
-        options
-      );
-    case TournamentFormat.DOUBLE_ELIMINATION:
-      return generateDoubleEliminationBracket(
-        teams,
-        name,
-        description,
-        createdBy,
-        options
-      );
-    case TournamentFormat.ROUND_ROBIN:
-      return generateRoundRobinBracket(
-        teams,
-        name,
-        description,
-        createdBy,
-        options
-      );
-    default:
-      return generateSingleEliminationBracket(
-        teams,
-        name,
-        description,
-        createdBy,
-        options
-      );
+  // Set totalRounds on the category
+  console.log("About to calculate totalRounds...");
+  console.log("Matches array:", defaultCategory.matches?.length || 0);
+  console.log("Matches rounds:", defaultCategory.matches?.map(m => m.round) || []);
+
+  if (defaultCategory.matches && defaultCategory.matches.length > 0) {
+    const maxRound = Math.max(...defaultCategory.matches.map(m => m.round), 0);
+    defaultCategory.totalRounds = maxRound + 1;
+    console.log(`Set totalRounds for category to: ${defaultCategory.totalRounds} (max round: ${maxRound})`);
+
+    // Debug: Show all rounds that were generated
+    const rounds = [...new Set(defaultCategory.matches.map(m => m.round))].sort((a, b) => a - b);
+    console.log(`Rounds generated in main function: ${rounds.join(', ')}`);
+
+    // Verify the assignment worked
+    console.log(`Verification - category.totalRounds is now: ${defaultCategory.totalRounds}`);
+  } else {
+    console.warn(`No matches generated, setting totalRounds to 0`);
+    defaultCategory.totalRounds = 0;
   }
+
+  return {
+    id: `tournament-${Date.now()}`,
+    name,
+    description,
+    categories: [defaultCategory],
+    createdAt: getCurrentDateIST(), // Use IST timezone string
+    createdBy,
+    organizerId: createdBy, // Use createdBy as organizerId for now
+    updatedBy: createdBy,
+  };
 }
 
-/**
- * Generate a single elimination tournament bracket
- */
-function generateSingleEliminationBracket(
-  teams: Team[],
-  name: string,
-  description: string,
-  createdBy: string,
-  options: BracketOptions = {}
-): Tournament {
-  const {
-    earlyRoundGames = 1,
-    quarterFinalGames = 3,
-    semiFinalGames = 3,
-    finalGames = 3,
-    earlyRoundPoints = 11,
-    quarterFinalPoints = 11,
-    semiFinalPoints = 11,
-    finalPoints = 11,
-  } = options;
+// Generate bracket for a specific category
+export function generateBracketForCategory(category: Category): Category {
+  const { teams = [], format } = category;
+
+  if (!teams || teams.length === 0) {
+    console.warn(`No teams provided for category ${category.gender} ${category.division}`);
+    return category;
+  }
+
+  // Create a copy of the category to avoid mutating the original
+  const updatedCategory = { ...category };
+
+  // Generate matches based on the format
+  if (format === TournamentFormat.POOL_PLAY) {
+    // For pool play, we need to update the teams with poolId and then generate matches
+    const { updatedTeams, matches } = generatePoolPlayMatchesWithTeamUpdates(teams, category);
+    updatedCategory.teams = updatedTeams;
+    updatedCategory.matches = matches;
+    updatedCategory.pools = generatePools(updatedTeams, category.numberOfPools || 2);
+  } else if (format === TournamentFormat.SINGLE_ELIMINATION) {
+    updatedCategory.matches = generateSingleEliminationMatches(teams, category);
+  } else if (format === TournamentFormat.DOUBLE_ELIMINATION) {
+    updatedCategory.matches = generateDoubleEliminationMatches(teams, category);
+  } else if (format === TournamentFormat.ROUND_ROBIN) {
+    updatedCategory.matches = generateRoundRobinMatches(teams, category);
+  } else {
+    console.warn(`Unknown tournament format: ${format}`);
+    updatedCategory.matches = [];
+  }
+
+  // Validate that matches were generated
+  if (!updatedCategory.matches || updatedCategory.matches.length === 0) {
+    console.warn(`No matches generated for category ${category.gender} ${category.division} with format ${format}`);
+    updatedCategory.totalRounds = 0; // Set to 0 if no matches
+  } else {
+    console.log(`Generated ${updatedCategory.matches.length} matches for category ${category.gender} ${category.division}`);
+
+    // Calculate and set totalRounds based on the generated matches
+    if (updatedCategory.matches.length > 0) {
+      const maxRound = Math.max(...updatedCategory.matches.map(m => m.round), 0);
+      updatedCategory.totalRounds = maxRound + 1;
+      console.log(`Category ${category.gender} ${category.division} has ${updatedCategory.totalRounds} rounds (max round: ${maxRound})`);
+
+      // Debug: Show all rounds that were generated
+      const rounds = [...new Set(updatedCategory.matches.map(m => m.round))].sort((a, b) => a - b);
+      console.log(`Rounds generated: ${rounds.join(', ')}`);
+    }
+  }
+
+  return updatedCategory;
+}
+
+// Generate brackets for all categories in a tournament
+export function generateBracketsForTournament(tournament: Tournament): Tournament {
+  if (!tournament.categories || tournament.categories.length === 0) {
+    console.error("Tournament has no categories");
+    throw new Error("Tournament must have at least one category");
+  }
+
+  const updatedTournament = { ...tournament };
+
+  // Generate brackets for each category
+  updatedTournament.categories = tournament.categories.map(category => {
+    try {
+      return generateBracketForCategory(category);
+    } catch (error) {
+      console.error(`Error generating bracket for category ${category.gender} ${category.division}:`, error);
+      // Return the original category if bracket generation fails
+      return category;
+    }
+  });
+
+  // Set totalRounds on each category based on their matches
+  updatedTournament.categories.forEach(category => {
+    console.log(`\n=== Processing category: ${category.gender} ${category.division} ===`);
+    console.log(`Current totalRounds: ${category.totalRounds}`);
+    console.log(`Matches count: ${category.matches?.length || 0}`);
+
+    if (category.matches && category.matches.length > 0) {
+      // Debug: Show all match rounds
+      const allRounds = category.matches.map(m => m.round);
+      console.log(`All match rounds: ${allRounds.join(', ')}`);
+
+      const maxRound = Math.max(...category.matches.map(m => m.round), 0);
+      const calculatedTotalRounds = maxRound + 1;
+
+      console.log(`Calculated values: maxRound=${maxRound}, calculatedTotalRounds=${calculatedTotalRounds}`);
+
+      // Only update if totalRounds is not already set or is incorrect
+      if (!category.totalRounds || category.totalRounds !== calculatedTotalRounds) {
+        console.log(`Updating totalRounds for ${category.gender} ${category.division}: ${category.totalRounds} -> ${calculatedTotalRounds}`);
+        category.totalRounds = calculatedTotalRounds;
+      } else {
+        console.log(`Category ${category.gender} ${category.division}: totalRounds already correct (${category.totalRounds})`);
+      }
+
+      console.log(`Final totalRounds: ${category.totalRounds}`);
+    } else {
+      console.warn(`Category ${category.gender} ${category.division} has no matches, setting totalRounds to 0`);
+      category.totalRounds = 0;
+    }
+  });
+
+  updatedTournament.isStarted = true;
+
+  // Set knockoutBracketPopulated on categories based on their format
+  updatedTournament.categories.forEach(category => {
+    if (category.matches && category.matches.length > 0) {
+      // Only set knockoutBracketPopulated for formats that actually have knockout brackets
+      if (category.format === TournamentFormat.SINGLE_ELIMINATION ||
+        category.format === TournamentFormat.DOUBLE_ELIMINATION ||
+        category.format === TournamentFormat.POOL_PLAY) {
+        category.knockoutBracketPopulated = true;
+        console.log(`Category ${category.gender} ${category.division}: knockout bracket populated`);
+      } else {
+        // Round Robin doesn't have knockout brackets
+        category.knockoutBracketPopulated = false;
+        console.log(`Category ${category.gender} ${category.division}: no knockout bracket (${category.format})`);
+      }
+    }
+  });
+
+  // Log summary of generated brackets
+  const totalMatches = updatedTournament.categories.reduce((total, cat) => {
+    return total + (cat.matches?.length || 0);
+  }, 0);
+
+  console.log(`Generated brackets for tournament "${updatedTournament.name}":`);
+  console.log(`- Categories: ${updatedTournament.categories.length}`);
+  console.log(`- Total matches: ${totalMatches}`);
+  console.log(`- Category rounds:`, updatedTournament.categories.map(cat =>
+    `${cat.gender} ${cat.division}: ${cat.totalRounds} rounds`
+  ));
+
+  return updatedTournament;
+}
+
+// Helper function to generate single elimination matches for a category
+function generateSingleEliminationMatches(teams: Team[], category: Category): Match[] {
+  const { earlyRoundGames = 1, earlyRoundPoints = 11 } = category;
 
   // Sort teams by seed if available
   const sortedTeams = [...teams].sort((a, b) => {
@@ -115,6 +269,13 @@ function generateSingleEliminationBracket(
   const totalTeams = sortedTeams.length;
   const totalRounds = Math.ceil(Math.log2(totalTeams));
   const perfectBracketSize = Math.pow(2, totalRounds);
+
+  console.log(`Single elimination bracket generation:`, {
+    totalTeams,
+    totalRounds,
+    perfectBracketSize,
+    byesNeeded: perfectBracketSize - totalTeams
+  });
 
   // Calculate number of byes needed
   const byesNeeded = perfectBracketSize - totalTeams;
@@ -172,18 +333,7 @@ function generateSingleEliminationBracket(
       continue;
     }
 
-    // Determine the number of games for this match based on the round
-    const bestOf = earlyRoundGames;
-
     matches.push({
-      pointsToWin:
-        bestOf === earlyRoundGames
-          ? earlyRoundPoints
-          : bestOf === quarterFinalGames
-          ? quarterFinalPoints
-          : bestOf === semiFinalGames
-          ? semiFinalPoints
-          : finalPoints,
       id: `match-0-${i}`,
       round: 0,
       position: i,
@@ -191,44 +341,49 @@ function generateSingleEliminationBracket(
       team2Id: team2Index !== null ? sortedTeams[team2Index]?.id || null : null,
       team1Score: undefined,
       team2Score: undefined,
-      team1Games: Array(bestOf).fill(0),
-      team2Games: Array(bestOf).fill(0),
+      team1Games: Array(earlyRoundGames).fill(0),
+      team2Games: Array(earlyRoundGames).fill(0),
       winnerId: isBye ? sortedTeams[team1Index as number]?.id || null : null,
       isBye,
-      bestOf,
+      bestOf: earlyRoundGames,
+      createdAt: getCurrentDateIST(),
+      updatedAt: getCurrentDateIST(),
+      createdBy: category.createdBy,
+      updatedBy: category.updatedBy,
     });
   }
 
-  // Generate subsequent rounds
+  // Generate subsequent rounds with proper progression
   for (let round = 1; round < totalRounds; round++) {
     const matchesInRound = perfectBracketSize / Math.pow(2, round + 1);
 
     // Determine the number of games for this round
     let bestOf = earlyRoundGames;
+    let pointsToWin = earlyRoundPoints;
 
     // Quarter-finals (round totalRounds-3)
     if (round === totalRounds - 3) {
-      bestOf = quarterFinalGames;
+      bestOf = category.quarterFinalGames || 3;
+      pointsToWin = category.quarterFinalPoints || 11;
     }
     // Semi-finals (round totalRounds-2)
     else if (round === totalRounds - 2) {
-      bestOf = semiFinalGames;
+      bestOf = category.semiFinalGames || 3;
+      pointsToWin = category.semiFinalPoints || 11;
     }
     // Finals (round totalRounds-1)
     else if (round === totalRounds - 1) {
-      bestOf = finalGames;
+      bestOf = category.finalGames || 3;
+      pointsToWin = category.finalPoints || 11;
     }
 
+    // Ensure we create matches for this round even if there are no teams yet
     for (let i = 0; i < matchesInRound; i++) {
+      // Calculate where the winner of this match goes
+      const nextRound = round + 1;
+      const nextMatchPosition = Math.floor(i / 2);
+
       matches.push({
-        pointsToWin:
-          bestOf === earlyRoundGames
-            ? earlyRoundPoints
-            : bestOf === quarterFinalGames
-            ? quarterFinalPoints
-            : bestOf === semiFinalGames
-            ? semiFinalPoints
-            : finalPoints,
         id: `match-${round}-${i}`,
         round,
         position: i,
@@ -241,9 +396,24 @@ function generateSingleEliminationBracket(
         winnerId: null,
         isBye: false,
         bestOf,
+        createdAt: getCurrentDateIST(),
+        updatedAt: getCurrentDateIST(),
+        createdBy: category.createdBy,
+        updatedBy: category.updatedBy,
       });
     }
   }
+
+  // Ensure we have all rounds from 0 to totalRounds-1
+  const roundsCreated = [...new Set(matches.map(m => m.round))].sort((a, b) => a - b);
+  console.log(`Generated rounds for single elimination: ${roundsCreated.join(', ')}`);
+  console.log(`Expected rounds: 0 to ${totalRounds - 1}`);
+  console.log(`Total matches generated: ${matches.length}`);
+  console.log(`Sample match structure:`, matches[0] ? {
+    id: matches[0].id,
+    round: matches[0].round,
+    position: matches[0].position
+  } : 'No matches');
 
   // Advance teams that got a bye in the first round
   const byeMatches = matches.filter(
@@ -266,41 +436,12 @@ function generateSingleEliminationBracket(
     }
   });
 
-  return {
-    id: `tournament-${Date.now()}`,
-    name,
-    description,
-    format: TournamentFormat.SINGLE_ELIMINATION,
-    createdAt: Date.now(),
-    matches,
-    totalRounds,
-    teams: sortedTeams,
-    createdBy,
-    pools: [],
-    knockoutBracketPopulated: false,
-  };
+  return matches;
 }
 
-/**
- * Generate a double elimination tournament bracket
- */
-function generateDoubleEliminationBracket(
-  teams: Team[],
-  name: string,
-  description: string,
-  createdBy: string,
-  options: BracketOptions = {}
-): Tournament {
-  const {
-    earlyRoundGames = 1,
-    quarterFinalGames = 3,
-    semiFinalGames = 3,
-    finalGames = 3,
-    earlyRoundPoints = 11,
-    quarterFinalPoints = 11,
-    semiFinalPoints = 11,
-    finalPoints = 11,
-  } = options;
+// Helper function to generate double elimination matches for a category
+function generateDoubleEliminationMatches(teams: Team[], category: Category): Match[] {
+  const { earlyRoundGames = 1, earlyRoundPoints = 11 } = category;
 
   // Sort teams by seed if available
   const sortedTeams = [...teams].sort((a, b) => {
@@ -313,9 +454,13 @@ function generateDoubleEliminationBracket(
   // Calculate the number of rounds needed for winners bracket
   const totalTeams = sortedTeams.length;
   const totalWinnerRounds = Math.ceil(Math.log2(totalTeams));
-  const totalLoserRounds = totalWinnerRounds * 2 - 1;
-  const totalRounds = totalWinnerRounds + totalLoserRounds + 1; // +1 for final
   const perfectBracketSize = Math.pow(2, totalWinnerRounds);
+
+  // Calculate losers bracket rounds
+  // Losers bracket needs to handle teams dropping from each winners round
+  // and then play through to determine the finalist
+  const totalLoserRounds = totalWinnerRounds + 1; // +1 for final consolidation
+  const totalRounds = totalWinnerRounds + totalLoserRounds + 1; // +1 for grand final
 
   // Create matches array
   const matches: Match[] = [];
@@ -370,14 +515,6 @@ function generateDoubleEliminationBracket(
     }
 
     matches.push({
-      pointsToWin:
-        bestOf === earlyRoundGames
-          ? earlyRoundPoints
-          : bestOf === quarterFinalGames
-          ? quarterFinalPoints
-          : bestOf === semiFinalGames
-          ? semiFinalPoints
-          : finalPoints,
       id: `w-match-0-${i}`,
       round: 0,
       position: i,
@@ -392,6 +529,10 @@ function generateDoubleEliminationBracket(
       isWinnersBracket: true,
       loserGoesTo: isBye ? null : `l-match-0-${Math.floor(i / 2)}`,
       bestOf: earlyRoundGames,
+      createdAt: getCurrentDateIST(),
+      updatedAt: getCurrentDateIST(),
+      createdBy: category.createdBy,
+      updatedBy: category.updatedBy,
     });
   }
 
@@ -404,15 +545,15 @@ function generateDoubleEliminationBracket(
 
     // Quarter-finals
     if (round === totalWinnerRounds - 3) {
-      bestOf = quarterFinalGames;
+      bestOf = category.quarterFinalGames || 3;
     }
     // Semi-finals
     else if (round === totalWinnerRounds - 2) {
-      bestOf = semiFinalGames;
+      bestOf = category.semiFinalGames || 3;
     }
     // Finals
     else if (round === totalWinnerRounds - 1) {
-      bestOf = finalGames;
+      bestOf = category.finalGames || 3;
     }
 
     for (let i = 0; i < matchesInRound; i++) {
@@ -421,14 +562,6 @@ function generateDoubleEliminationBracket(
       const loserPosition = Math.floor(i / 2);
 
       matches.push({
-        pointsToWin:
-          bestOf === earlyRoundGames
-            ? earlyRoundPoints
-            : bestOf === quarterFinalGames
-            ? quarterFinalPoints
-            : bestOf === semiFinalGames
-            ? semiFinalPoints
-            : finalPoints,
         id: `w-match-${round}-${i}`,
         round,
         position: i,
@@ -446,6 +579,10 @@ function generateDoubleEliminationBracket(
             ? `l-match-${loserRound}-${loserPosition}`
             : null,
         bestOf,
+        createdAt: getCurrentDateIST(),
+        updatedAt: getCurrentDateIST(),
+        createdBy: category.createdBy,
+        updatedBy: category.updatedBy,
       });
     }
   }
@@ -480,14 +617,6 @@ function generateDoubleEliminationBracket(
   // First, create round 0 of losers bracket (losers from winners round 1)
   for (let i = 0; i < firstRoundLoserMatches; i++) {
     matches.push({
-      pointsToWin:
-        bestOf === earlyRoundGames
-          ? earlyRoundPoints
-          : bestOf === quarterFinalGames
-          ? quarterFinalPoints
-          : bestOf === semiFinalGames
-          ? semiFinalPoints
-          : finalPoints,
       id: `l-match-0-${i}`,
       round: totalWinnerRounds, // Start losers bracket rounds after winners rounds
       position: i,
@@ -504,6 +633,10 @@ function generateDoubleEliminationBracket(
       // Winners from losers round 0 go to losers round 1
       winnerGoesTo: `l-match-1-${i}`,
       bestOf: earlyRoundGames,
+      createdAt: getCurrentDateIST(),
+      updatedAt: getCurrentDateIST(),
+      createdBy: category.createdBy,
+      updatedBy: category.updatedBy,
     });
   }
 
@@ -535,15 +668,15 @@ function generateDoubleEliminationBracket(
 
     // Quarter-finals equivalent
     if (loserRoundEquivalent === 3) {
-      bestOf = quarterFinalGames;
+      bestOf = category.quarterFinalGames || 3;
     }
     // Semi-finals equivalent
     else if (loserRoundEquivalent === 2) {
-      bestOf = semiFinalGames;
+      bestOf = category.semiFinalGames || 3;
     }
     // Finals equivalent
     else if (loserRoundEquivalent === 1) {
-      bestOf = finalGames;
+      bestOf = category.finalGames || 3;
     }
 
     for (let i = 0; i < matchesInRound; i++) {
@@ -560,14 +693,6 @@ function generateDoubleEliminationBracket(
       }
 
       matches.push({
-        pointsToWin:
-          bestOf === earlyRoundGames
-            ? earlyRoundPoints
-            : bestOf === quarterFinalGames
-            ? quarterFinalPoints
-            : bestOf === semiFinalGames
-            ? semiFinalPoints
-            : finalPoints,
         id: `l-match-${round}-${i}`,
         round: totalWinnerRounds + round,
         position: i,
@@ -583,20 +708,16 @@ function generateDoubleEliminationBracket(
         loserGoesTo: null,
         winnerGoesTo: winnerGoesTo,
         bestOf,
+        createdAt: getCurrentDateIST(),
+        updatedAt: getCurrentDateIST(),
+        createdBy: category.createdBy,
+        updatedBy: category.updatedBy,
       });
     }
   }
 
   // Final match (winners bracket champion vs losers bracket champion)
   matches.push({
-    pointsToWin:
-      bestOf === earlyRoundGames
-        ? earlyRoundPoints
-        : bestOf === quarterFinalGames
-        ? quarterFinalPoints
-        : bestOf === semiFinalGames
-        ? semiFinalPoints
-        : finalPoints,
     id: `final-match`,
     round: totalRounds - 1,
     position: 0,
@@ -604,42 +725,25 @@ function generateDoubleEliminationBracket(
     team2Id: null, // Losers bracket champion
     team1Score: undefined,
     team2Score: undefined,
-    team1Games: Array(finalGames).fill(0),
-    team2Games: Array(finalGames).fill(0),
+    team1Games: Array(category.finalGames || 3).fill(0),
+    team2Games: Array(category.finalGames || 3).fill(0),
     winnerId: null,
     isBye: false,
     isWinnersBracket: false,
     loserGoesTo: null,
-    bestOf: finalGames,
+    bestOf: category.finalGames || 3,
+    createdAt: getCurrentDateIST(),
+    updatedAt: getCurrentDateIST(),
+    createdBy: category.createdBy,
+    updatedBy: category.updatedBy,
   });
 
-  return {
-    id: `tournament-${Date.now()}`,
-    name,
-    description,
-    format: TournamentFormat.DOUBLE_ELIMINATION,
-    createdAt: Date.now(),
-    matches,
-    totalRounds,
-    totalWinnerRounds,
-    teams: sortedTeams,
-    createdBy,
-    pools: [],
-    knockoutBracketPopulated: false,
-  };
+  return matches;
 }
 
-/**
- * Generate a round robin tournament
- */
-function generateRoundRobinBracket(
-  teams: Team[],
-  name: string,
-  description: string,
-  createdBy: string,
-  options: BracketOptions = {}
-): Tournament {
-  const { earlyRoundGames = 1 } = options;
+// Helper function to generate round robin matches for a category
+function generateRoundRobinMatches(teams: Team[], category: Category): Match[] {
+  const { earlyRoundGames = 1 } = category;
 
   const totalTeams = teams.length;
   const matches: Match[] = [];
@@ -654,17 +758,14 @@ function generateRoundRobinBracket(
 
   // Add all matches from the schedule
   schedule.forEach((round, roundIndex) => {
-    round.forEach((matchup, matchIndex) => {
-      if (matchup.team1Id !== "bye" && matchup.team2Id !== "bye") {
+    // Only process rounds that have at least one non-bye match
+    const nonByeMatches = round.filter(matchup =>
+      matchup.team1Id !== "bye" && matchup.team2Id !== "bye"
+    );
+
+    if (nonByeMatches.length > 0) {
+      nonByeMatches.forEach((matchup, matchIndex) => {
         matches.push({
-          pointsToWin:
-            bestOf === earlyRoundGames
-              ? earlyRoundPoints
-              : bestOf === quarterFinalGames
-              ? quarterFinalPoints
-              : bestOf === semiFinalGames
-              ? semiFinalPoints
-              : finalPoints,
           id: `match-${roundIndex}-${matchIndex}`,
           round: roundIndex,
           position: matchIndex,
@@ -677,46 +778,41 @@ function generateRoundRobinBracket(
           winnerId: null,
           isBye: false,
           bestOf: earlyRoundGames,
+          createdAt: getCurrentDateIST(),
+          updatedAt: getCurrentDateIST(),
+          createdBy: category.createdBy,
+          updatedBy: category.updatedBy,
         });
-      }
-    });
+      });
+    }
   });
 
-  return {
-    id: `tournament-${Date.now()}`,
-    name,
-    description,
-    format: TournamentFormat.ROUND_ROBIN,
-    createdAt: Date.now(),
-    matches,
-    totalRounds: roundsNeeded,
-    teams,
-    createdBy,
-    pools: [],
-    knockoutBracketPopulated: false,
-  };
+  // Ensure we have sequential rounds by re-mapping round numbers
+  if (matches.length > 0) {
+    const rounds = [...new Set(matches.map(m => m.round))].sort((a, b) => a - b);
+    const roundMapping = new Map();
+    rounds.forEach((oldRound, newRound) => {
+      roundMapping.set(oldRound, newRound);
+    });
+
+    // Update all matches with sequential round numbers
+    matches.forEach(match => {
+      match.round = roundMapping.get(match.round) || 0;
+    });
+  }
+
+  console.log(`Round robin matches generated:`, {
+    totalTeams,
+    totalMatches: matches.length,
+    rounds: [...new Set(matches.map(m => m.round))].sort((a, b) => a - b)
+  });
+
+  return matches;
 }
 
-/**
- * Generate a pool play tournament with knockout stage
- */
-function generatePoolPlayBracket(
-  teams: Team[],
-  name: string,
-  description: string,
-  createdBy: string,
-  options: BracketOptions = {}
-): Tournament {
-  const {
-    earlyRoundGames = 1,
-    quarterFinalGames = 3,
-    semiFinalGames = 3,
-    finalGames = 3,
-    earlyRoundPoints = 11,
-    quarterFinalPoints = 11,
-    semiFinalPoints = 11,
-    finalPoints = 11,
-  } = options;
+// Helper function to generate pool play matches for a category
+function generatePoolPlayMatches(teams: Team[], category: Category): Match[] {
+  const { earlyRoundGames = 1, earlyRoundPoints = 11 } = category;
 
   // Sort teams by skill level/rating if available
   const sortedTeams = [...teams].sort((a, b) => {
@@ -733,11 +829,11 @@ function generatePoolPlayBracket(
   });
 
   // Determine number of pools based on team count
-  let numPools = 2; // Default to 2 pools
+  let numPools = category.numberOfPools || 2; // Use category setting or default to 2
 
-  if (sortedTeams.length >= 16) {
+  if (sortedTeams.length >= 16 && !category.numberOfPools) {
     numPools = 4;
-  } else if (sortedTeams.length >= 12) {
+  } else if (sortedTeams.length >= 12 && !category.numberOfPools) {
     numPools = 3;
   }
 
@@ -768,7 +864,6 @@ function generatePoolPlayBracket(
       round.forEach((matchup, matchIndex) => {
         if (matchup.team1Id !== "bye" && matchup.team2Id !== "bye") {
           matches.push({
-            pointsToWin: earlyRoundPoints,
             id: `pool-${poolIndex}-match-${matchCounter++}`,
             round: roundIndex,
             position: matchIndex,
@@ -782,6 +877,10 @@ function generatePoolPlayBracket(
             isBye: false,
             poolId: poolIndex,
             bestOf: earlyRoundGames,
+            createdAt: getCurrentDateIST(),
+            updatedAt: getCurrentDateIST(),
+            createdBy: category.createdBy,
+            updatedBy: category.updatedBy,
           });
         }
       });
@@ -793,8 +892,6 @@ function generatePoolPlayBracket(
   const knockoutRounds = Math.ceil(Math.log2(teamsAdvancing));
 
   // Generate knockout stage matches
-  const knockoutRoundCounter = 0;
-
   for (let round = 0; round < knockoutRounds; round++) {
     const matchesInRound = Math.pow(2, knockoutRounds - round - 1);
 
@@ -803,27 +900,19 @@ function generatePoolPlayBracket(
 
     // Quarter-finals (round 0 for 8 teams)
     if (round === 0 && knockoutRounds >= 3) {
-      bestOf = quarterFinalGames;
+      bestOf = category.quarterFinalGames || 3;
     }
     // Semi-finals (round knockoutRounds-2)
     else if (round === knockoutRounds - 2) {
-      bestOf = semiFinalGames;
+      bestOf = category.semiFinalGames || 3;
     }
     // Finals (round knockoutRounds-1)
     else if (round === knockoutRounds - 1) {
-      bestOf = finalGames;
+      bestOf = category.finalGames || 3;
     }
 
     for (let i = 0; i < matchesInRound; i++) {
       matches.push({
-        pointsToWin:
-          bestOf === earlyRoundGames
-            ? earlyRoundPoints
-            : bestOf === quarterFinalGames
-            ? quarterFinalPoints
-            : bestOf === semiFinalGames
-            ? semiFinalPoints
-            : finalPoints,
         id: `knockout-${round}-${i}`,
         round: round + 100, // Use 100+ to distinguish from pool play rounds
         position: i,
@@ -837,30 +926,190 @@ function generatePoolPlayBracket(
         isBye: false,
         isKnockout: true,
         bestOf,
+        createdAt: getCurrentDateIST(),
+        updatedAt: getCurrentDateIST(),
+        createdBy: category.createdBy,
+        updatedBy: category.updatedBy,
       });
     }
   }
 
-  // Create pool objects for the tournament
-  const poolObjects = pools.map((poolTeams, index) => ({
+  return matches;
+}
+
+// Helper function to generate pool play matches with updated teams (including poolId)
+function generatePoolPlayMatchesWithTeamUpdates(teams: Team[], category: Category): { updatedTeams: Team[], matches: Match[] } {
+  const { earlyRoundGames = 1, earlyRoundPoints = 11 } = category;
+
+  // Sort teams by skill level/rating if available
+  const sortedTeams = [...teams].sort((a, b) => {
+    if (a.skillLevel && b.skillLevel) {
+      // Convert skill levels like "4.5" to numbers for comparison
+      const skillA = Number.parseFloat(a.skillLevel);
+      const skillB = Number.parseFloat(b.skillLevel);
+      return skillB - skillA; // Higher skill first
+    }
+    if (a.seed && b.seed) return a.seed - b.seed;
+    if (a.seed) return -1;
+    if (b.seed) return 1;
+    return 0;
+  });
+
+  // Determine number of pools based on team count
+  let numPools = category.numberOfPools || 2; // Use category setting or default to 2
+
+  if (sortedTeams.length >= 16 && !category.numberOfPools) {
+    numPools = 4;
+  } else if (sortedTeams.length >= 12 && !category.numberOfPools) {
+    numPools = 3;
+  }
+
+  // Create pools with snake distribution
+  const pools: Team[][] = Array.from({ length: numPools }, () => []);
+
+  // Distribute teams in snake pattern (1,2,3,4,4,3,2,1,...)
+  sortedTeams.forEach((team, index) => {
+    const poolIndex = index % (2 * numPools);
+    const actualPoolIndex =
+      poolIndex < numPools ? poolIndex : 2 * numPools - 1 - poolIndex;
+    // Add poolId to the team
+    pools[actualPoolIndex].push({
+      ...team,
+      poolId: actualPoolIndex,
+    });
+  });
+
+  // Create matches for pool play (round robin within each pool)
+  const matches: Match[] = [];
+  let matchCounter = 0;
+
+  // Generate round robin matches for each pool
+  pools.forEach((poolTeams, poolIndex) => {
+    const schedule = createRoundRobinSchedule(poolTeams);
+
+    schedule.forEach((round, roundIndex) => {
+      round.forEach((matchup, matchIndex) => {
+        if (matchup.team1Id !== "bye" && matchup.team2Id !== "bye") {
+          matches.push({
+            id: `pool-${poolIndex}-match-${matchCounter++}`,
+            round: roundIndex,
+            position: matchIndex,
+            team1Id: matchup.team1Id,
+            team2Id: matchup.team2Id,
+            team1Score: undefined,
+            team2Score: undefined,
+            team1Games: Array(earlyRoundGames).fill(0),
+            team2Games: Array(earlyRoundGames).fill(0),
+            winnerId: null,
+            isBye: false,
+            poolId: poolIndex,
+            bestOf: earlyRoundGames,
+            createdAt: getCurrentDateIST(),
+            updatedAt: getCurrentDateIST(),
+            createdBy: category.createdBy,
+            updatedBy: category.updatedBy,
+          });
+        }
+      });
+    });
+  });
+
+  // Calculate total rounds needed for knockout stage
+  const teamsAdvancing = numPools * 2; // Top 2 from each pool
+  const knockoutRounds = Math.ceil(Math.log2(teamsAdvancing));
+
+  // Generate knockout stage matches
+  for (let round = 0; round < knockoutRounds; round++) {
+    const matchesInRound = Math.pow(2, knockoutRounds - round - 1);
+
+    // Determine the number of games for this round
+    let bestOf = earlyRoundGames;
+
+    // Quarter-finals (round 0 for 8 teams)
+    if (round === 0 && knockoutRounds >= 3) {
+      bestOf = category.quarterFinalGames || 3;
+    }
+    // Semi-finals (round knockoutRounds-2)
+    else if (round === knockoutRounds - 2) {
+      bestOf = category.semiFinalGames || 3;
+    }
+    // Finals (round knockoutRounds-1)
+    else if (round === knockoutRounds - 1) {
+      bestOf = category.finalGames || 3;
+    }
+
+    for (let i = 0; i < matchesInRound; i++) {
+      matches.push({
+        id: `knockout-${round}-${i}`,
+        round: round + 100, // Use 100+ to distinguish from pool play rounds
+        position: i,
+        team1Id: null,
+        team2Id: null,
+        team1Score: undefined,
+        team2Score: undefined,
+        team1Games: Array(bestOf).fill(0),
+        team2Games: Array(bestOf).fill(0),
+        winnerId: null,
+        isBye: false,
+        isKnockout: true,
+        bestOf,
+        createdAt: getCurrentDateIST(),
+        updatedAt: getCurrentDateIST(),
+        createdBy: category.createdBy,
+        updatedBy: category.updatedBy,
+      });
+    }
+  }
+
+  // Flatten the pools array to get all teams with poolId
+  const updatedTeams = pools.flat();
+
+  return { updatedTeams, matches };
+}
+
+// Helper function to generate pools for a category
+function generatePools(teams: Team[], numberOfPools: number) {
+  // Sort teams by skill level/rating if available
+  const sortedTeams = [...teams].sort((a, b) => {
+    if (a.skillLevel && b.skillLevel) {
+      const skillA = Number.parseFloat(a.skillLevel);
+      const skillB = Number.parseFloat(b.skillLevel);
+      return skillB - skillA; // Higher skill first
+    }
+    if (a.seed && b.seed) return a.seed - b.seed;
+    if (a.seed) return -1;
+    if (b.seed) return 1;
+    return 0;
+  });
+
+  // Create pools with snake distribution
+  const pools: Team[][] = Array.from({ length: numberOfPools }, () => []);
+
+  // Distribute teams in snake pattern (1,2,3,4,4,3,2,1,...)
+  sortedTeams.forEach((team, index) => {
+    const poolIndex = index % (2 * numberOfPools);
+    const actualPoolIndex =
+      poolIndex < numberOfPools ? poolIndex : 2 * numberOfPools - 1 - poolIndex;
+
+    // Create a copy of the team with poolId
+    const teamWithPool = {
+      ...team,
+      poolId: actualPoolIndex,
+    };
+
+    pools[actualPoolIndex].push(teamWithPool);
+  });
+
+  // Create pool objects
+  return pools.map((poolTeams, index) => ({
     id: index.toString(),
     name: `Pool ${String.fromCharCode(65 + index)}`, // Pool A, Pool B, etc.
     teams: poolTeams,
+    createdAt: getCurrentDateIST(),
+    updatedAt: getCurrentDateIST(),
+    createdBy: "system",
+    updatedBy: "system",
   }));
-
-  return {
-    id: `tournament-${Date.now()}`,
-    name,
-    description,
-    format: TournamentFormat.POOL_PLAY,
-    createdAt: Date.now(),
-    matches,
-    totalRounds: Math.max(...matches.map((m) => m.round)) + 1,
-    teams: sortedTeams,
-    createdBy,
-    pools: poolObjects,
-    knockoutBracketPopulated: false,
-  };
 }
 
 function createRoundRobinSchedule(teams: Team[]) {
@@ -875,6 +1124,12 @@ function createRoundRobinSchedule(teams: Team[]) {
 
   const n = teamsForScheduling.length;
   const rounds = n - 1;
+
+  console.log(`Creating round robin schedule:`, {
+    originalTeamCount: teamCount,
+    teamsForScheduling: teamsForScheduling.length,
+    totalRounds: rounds
+  });
 
   // Create array of team IDs for scheduling
   const teamIds = teamsForScheduling.map((team) => team.id);
@@ -907,8 +1162,91 @@ function createRoundRobinSchedule(teams: Team[]) {
       }
     }
 
+    console.log(`Round ${round} matches:`, roundMatches);
     schedule.push(roundMatches);
   }
 
   return schedule;
+}
+
+// Helper function to validate generated brackets
+export function validateGeneratedBrackets(tournament: Tournament): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  console.log("Validating generated brackets for tournament:", tournament.name);
+
+  if (!tournament.categories || tournament.categories.length === 0) {
+    errors.push("Tournament has no categories");
+    return { isValid: false, errors };
+  }
+
+  tournament.categories.forEach((category, categoryIndex) => {
+    console.log(`Validating category ${category.gender} ${category.division}:`, {
+      totalRounds: category.totalRounds,
+      matchesCount: category.matches?.length || 0,
+      rounds: category.matches ? [...new Set(category.matches.map(m => m.round))].sort((a, b) => a - b) : []
+    });
+
+    if (!category.matches || category.matches.length === 0) {
+      errors.push(`Category ${category.gender} ${category.division} has no matches`);
+      return;
+    }
+
+    // Validate match structure
+    category.matches.forEach((match, matchIndex) => {
+      if (!match.id) {
+        errors.push(`Match ${matchIndex} in category ${categoryIndex} has no ID`);
+      }
+
+      if (match.round < 0) {
+        errors.push(`Match ${match.id} has invalid round number: ${match.round}`);
+      }
+
+      if (match.position < 0) {
+        errors.push(`Match ${match.id} has invalid position: ${match.position}`);
+      }
+
+      // For first round matches, ensure teams are assigned
+      if (match.round === 0 && !match.team1Id && !match.team2Id && !match.isBye) {
+        errors.push(`First round match ${match.id} has no teams assigned and is not a bye`);
+      }
+    });
+
+    // Validate round progression
+    const rounds = [...new Set(category.matches.map(m => m.round))].sort((a, b) => a - b);
+    console.log(`Category ${category.gender} ${category.division} rounds:`, rounds);
+
+    // Separate pool play rounds (0-99) from knockout rounds (100+)
+    const poolPlayRounds = rounds.filter(r => r < 100);
+    const knockoutRounds = rounds.filter(r => r >= 100);
+
+    // Validate pool play rounds are sequential
+    for (let i = 1; i < poolPlayRounds.length; i++) {
+      if (poolPlayRounds[i] !== poolPlayRounds[i - 1] + 1) {
+        const missingRounds = [];
+        for (let r = poolPlayRounds[i - 1] + 1; r < poolPlayRounds[i]; r++) {
+          missingRounds.push(r);
+        }
+        errors.push(`Category ${category.gender} ${category.division} has non-sequential pool play rounds: ${poolPlayRounds[i - 1]} -> ${poolPlayRounds[i]} (missing: ${missingRounds.join(', ')})`);
+      }
+    }
+
+    // Validate knockout rounds are sequential (starting from 100)
+    for (let i = 1; i < knockoutRounds.length; i++) {
+      if (knockoutRounds[i] !== knockoutRounds[i - 1] + 1) {
+        const missingRounds = [];
+        for (let r = knockoutRounds[i - 1] + 1; r < knockoutRounds[i]; r++) {
+          missingRounds.push(r);
+        }
+        errors.push(`Category ${category.gender} ${category.division} has non-sequential knockout rounds: ${knockoutRounds[i - 1]} -> ${knockoutRounds[i]} (missing: ${missingRounds.join(', ')})`);
+      }
+    }
+  });
+
+  console.log("Validation result:", { isValid: errors.length === 0, errors });
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
 }

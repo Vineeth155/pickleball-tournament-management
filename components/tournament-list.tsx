@@ -48,8 +48,16 @@ export default function TournamentList({ currentUser }: TournamentListProps) {
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleDateString();
+  const formatDate = (timestamp: number | Date | string) => {
+    let date: Date;
+    if (typeof timestamp === 'string') {
+      date = new Date(timestamp);
+    } else if (typeof timestamp === 'number') {
+      date = new Date(timestamp);
+    } else {
+      date = timestamp;
+    }
+    return date.toLocaleDateString();
   };
 
   // Helper function to create a URL-friendly slug
@@ -115,8 +123,8 @@ export default function TournamentList({ currentUser }: TournamentListProps) {
           <CardHeader className="pb-3">
             <div className="flex justify-between items-start">
               <CardTitle className="line-clamp-1">{tournament.name}</CardTitle>
-              <Badge className={getFormatColor(tournament.format)}>
-                {getFormatLabel(tournament.format)}
+              <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                {tournament.categories?.length || 0} Categories
               </Badge>
             </div>
             <CardDescription className="line-clamp-2">
@@ -130,7 +138,7 @@ export default function TournamentList({ currentUser }: TournamentListProps) {
             </div>
             <div className="flex items-center text-sm text-muted-foreground mb-2">
               <Users className="mr-1 h-4 w-4" />
-              {tournament.teams.length} Teams
+              {tournament.categories?.reduce((total, category) => total + (category.teams?.length || 0), 0) || 0} Teams
             </div>
             {tournament.location && (
               <div className="flex items-center text-sm text-muted-foreground">

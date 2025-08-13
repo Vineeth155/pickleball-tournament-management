@@ -5,6 +5,11 @@ const TeamSchema = new Schema({
   name: String,
   seed: Number,
   players: [String],
+  playerDetails: [{
+    skillLevel: String,
+    ageGroup: String,
+    gender: { type: String, enum: ["Male", "Female"] }
+  }],
   skillLevel: String,
   ageGroup: String,
   gender: { type: String, enum: ["Men", "Women", "Mixed"] },
@@ -13,6 +18,11 @@ const TeamSchema = new Schema({
   contactPhone: String,
   qualified: Boolean,
   manualPosition: Number,
+  // Audit fields
+  createdAt: { type: String, default: () => new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) },
+  updatedAt: { type: String, default: () => new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) },
+  createdBy: String,
+  updatedBy: String,
 });
 
 const MatchSchema = new Schema({
@@ -39,25 +49,35 @@ const MatchSchema = new Schema({
   completed: Boolean,
   poolId: Schema.Types.Mixed,
   isKnockout: Boolean,
+  // Audit fields
+  createdAt: { type: String, default: () => new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) },
+  updatedAt: { type: String, default: () => new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) },
+  createdBy: String,
+  updatedBy: String,
 });
 
 const PoolSchema = new Schema({
   id: String,
   name: String,
   teams: [TeamSchema],
+  // Audit fields
+  createdAt: { type: String, default: () => new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) },
+  updatedAt: { type: String, default: () => new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) },
+  createdBy: String,
+  updatedBy: String,
 });
 
 const CategorySchema = new Schema({
-  id: { type: String },
-  matchType: {
+  id: { type: String, required: true },
+  gender: {
     type: String,
-    enum: [
-      "Men's Singles",
-      "Men's Doubles",
-      "Women's Singles",
-      "Women's Doubles",
-      "Mixed Doubles",
-    ],
+    enum: ["Mens", "Womens", "mixed"],
+    required: true,
+  },
+  division: {
+    type: String,
+    enum: ["singles", "doubles"],
+    required: true,
   },
   skillLevel: {
     min: { type: Number },
@@ -67,13 +87,9 @@ const CategorySchema = new Schema({
   seedingMethod: {
     type: String,
     enum: ["Random", "Ranking_Based"],
-  }
-});
-
-const TournamentSchema = new Schema({
-  id: String,
-  name: String,
-  description: String,
+    required: true,
+  },
+  // Tournament configuration fields
   format: {
     type: String,
     enum: [
@@ -82,39 +98,62 @@ const TournamentSchema = new Schema({
       "round_robin",
       "pool_play",
     ],
+    required: true,
   },
-  createdAt: Number,
-  categories: { 
-    type: [CategorySchema],
-    validate: {
-      validator: (v: any) => {
-        console.log(v.length);
-        return v.length > 0;
-      },
-      message: "At least one category is required"
-    }
-  },
-  matches: [MatchSchema],
-  totalRounds: Number,
-  totalWinnerRounds: Number,
-  teams: [TeamSchema],
-  createdBy: String,
-  location: String,
-  startDate: String,
-  endDate: String,
-  division: String,
+  // Bracket configuration fields
+  totalRounds: Number, // Number of rounds for this category
+  totalWinnerRounds: Number, // Number of winner bracket rounds for double elimination
+  knockoutBracketPopulated: Boolean, // Flag to track if knockout bracket has been populated
   pointsToWin: Number,
   winBy: Number,
   bestOf: Number,
-  matchType: { type: String, enum: ["Singles", "Doubles", "Mixed Doubles"] },
-  pools: [PoolSchema],
-  slug: String,
-  isStarted: Boolean,
   earlyRoundGames: Number,
   quarterFinalGames: Number,
   semiFinalGames: Number,
   finalGames: Number,
-  knockoutBracketPopulated: Boolean,
+  earlyRoundPoints: Number,
+  quarterFinalPoints: Number,
+  semiFinalPoints: Number,
+  finalPoints: Number,
+  numberOfPools: Number,
+  // Teams and matches specific to this category
+  teams: [TeamSchema],
+  matches: [MatchSchema],
+  pools: [PoolSchema],
+  // Audit fields
+  createdAt: { type: String, default: () => new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) },
+  updatedAt: { type: String, default: () => new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) },
+  createdBy: String,
+  updatedBy: String,
+});
+
+const TournamentSchema = new Schema({
+  id: String,
+  name: String,
+  description: String,
+  organizerId: String, // ID of the organizer who created this tournament
+  createdAt: { type: String, default: () => new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) }, // Changed to String with IST timezone
+  categories: { 
+    type: [CategorySchema],
+    required: true,
+    validate: {
+      validator: (v: any) => {
+        return v && v.length > 0;
+      },
+      message: "At least one category is required"
+    }
+  },
+  // Note: totalRounds, totalWinnerRounds, and knockoutBracketPopulated are now category-level
+  // as they depend on the category format and bracket configuration
+  createdBy: String,
+  location: String,
+  startDate: String,
+  endDate: String,
+  slug: String,
+  isStarted: Boolean, // Whether the tournament has been started
+  // Audit fields
+  updatedAt: { type: String, default: () => new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }) }, // Changed to String with IST timezone
+  updatedBy: String,
 });
 
 export default models.Tournament ||

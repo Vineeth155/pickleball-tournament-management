@@ -8,7 +8,16 @@ export function getAllTournaments(): Tournament[] {
 }
 
 export function getTournamentById(id: string): Tournament | undefined {
-  return tournaments.find((t) => t.id === id);
+  const tournament = tournaments.find((t) => t.id === id);
+  if (!tournament) {
+    console.log(`Tournament ${id} not found in store. Available IDs:`, tournaments.map(t => t.id));
+  }
+  return tournament;
+}
+
+// Helper function to get current date in IST timezone as string
+function getCurrentDateIST(): string {
+  return new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
 }
 
 export function createTournament(
@@ -20,7 +29,8 @@ export function createTournament(
     id: `tournament-${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 9)}`,
-    createdAt: Date.now(),
+    createdAt: getCurrentDateIST(), // Use IST timezone string
+    organizerId: tournament.organizerId || tournament.createdBy, // Ensure organizerId is set
     slug,
   };
 
@@ -45,15 +55,22 @@ export function updateTournament(tournament: Tournament): Tournament {
 
     // Log the update for debugging
     console.log(`Tournament ${tournament.id} updated in store`, {
-      pools: tournament.pools?.map((p) => ({
-        id: p.id,
-        name: p.name,
-        teams: p.teams.map((t) => ({
-          id: t.id,
-          name: t.name,
-          manualPosition: t.manualPosition,
-          qualified: t.qualified,
+      categories: tournament.categories?.map((cat) => ({
+        id: cat.id,
+        gender: cat.gender,
+        division: cat.division,
+        format: cat.format,
+        pools: cat.pools?.map((p) => ({
+          id: p.id,
+          name: p.name,
+          teams: p.teams.map((t) => ({
+            id: t.id,
+            name: t.name,
+            manualPosition: t.manualPosition,
+            qualified: t.qualified,
+          })),
         })),
+        matches: cat.matches?.length || 0,
       })),
     });
   } else {
@@ -83,9 +100,30 @@ export function loadTournamentsFromLocalStorage(): void {
     const storedTournaments = localStorage.getItem("tournaments");
     if (storedTournaments) {
       tournaments = JSON.parse(storedTournaments);
+      console.log(`Loaded ${tournaments.length} tournaments from localStorage`);
     }
   } catch (error) {
     console.error("Failed to load tournaments from localStorage", error);
+  }
+}
+
+// Initialize tournaments from database on app start
+export async function initializeTournaments(): Promise<void> {
+  try {
+    console.log("Initializing tournaments from database...");
+    const response = await fetch('/api/tournaments');
+    if (response.ok) {
+      const dbTournaments = await response.json();
+      tournaments = dbTournaments;
+      saveTournamentsToLocalStorage();
+      console.log(`Initialized ${tournaments.length} tournaments from database`);
+    } else {
+      console.warn("Failed to fetch tournaments from database, using localStorage fallback");
+      loadTournamentsFromLocalStorage();
+    }
+  } catch (error) {
+    console.warn("Failed to initialize tournaments from database, using localStorage fallback:", error);
+    loadTournamentsFromLocalStorage();
   }
 }
 
@@ -112,53 +150,112 @@ function createSlug(name: string): string {
     .replace(/-+/g, "-");
 }
 
-// Enhance the updateMatchInTournament function to handle force updates
-export function updateMatchInTournament(
+// Helper function to find a match in a tournament's categories
+function findMatchInTournament(tournament: Tournament, matchId: string): { categoryIndex: number; matchIndex: number } | null {
+  for (let categoryIndex = 0; categoryIndex < tournament.categories.length; categoryIndex++) {
+    const category = tournament.categories[categoryIndex];
+    if (category.matches) {
+      const matchIndex = category.matches.findIndex(m => m.id === matchId);
+      if (matchIndex !== -1) {
+        return { categoryIndex, matchIndex };
+      }
+    }
+  }
+  return null;
+}
+
+// Helper function to find a category by ID
+function findCategoryInTournament(tournament: Tournament, categoryId: string): number | null {
+  const categoryIndex = tournament.categories.findIndex(cat => cat.id === categoryId);
+  return categoryIndex !== -1 ? categoryIndex : null;
+}
+
+// Enhanced match management functions that work with categories
+export async function updateMatchInTournament(
   tournamentId: string,
   matchId: string,
   matchUpdates: Partial<any>
-): boolean {
+): Promise<boolean> {
   // Skip special force-update cases
   if (matchId === "force-update") {
     console.log("Handling force-update special case");
-    // Just trigger a save to ensure all changes are persisted
     saveTournamentsToLocalStorage();
     return true;
   }
 
-  const tournament = getTournamentById(tournamentId);
+  // Debug: Log all available tournament IDs
+  console.log("Available tournament IDs:", tournaments.map(t => t.id));
+  console.log("Looking for tournament ID:", tournamentId);
+  console.log("Total tournaments in store:", tournaments.length);
+
+  let tournament = getTournamentById(tournamentId);
   if (!tournament) {
-    console.error(`Tournament ${tournamentId} not found`);
-    return false;
+    console.log(`Tournament ${tournamentId} not found in local store, trying to refresh from database...`);
+    
+    // Try to refresh from database
+    try {
+      const response = await fetch(`/api/tournaments/${tournamentId}`);
+      if (response.ok) {
+        const dbTournament = await response.json();
+        // Add to local store
+        tournaments.push(dbTournament);
+        saveTournamentsToLocalStorage();
+        tournament = dbTournament;
+        console.log(`Tournament ${tournamentId} loaded from database and added to local store`);
+      } else {
+        console.error(`Tournament ${tournamentId} not found in database either`);
+        console.error("Available tournaments:", tournaments.map(t => ({ id: t.id, name: t.name })));
+        return false;
+      }
+    } catch (error) {
+      console.error(`Failed to fetch tournament ${tournamentId} from database:`, error);
+      console.error("Available tournaments:", tournaments.map(t => ({ id: t.id, name: t.name })));
+      return false;
+    }
   }
 
-  const matchIndex = tournament.matches.findIndex((m) => m.id === matchId);
-  if (matchIndex === -1) {
+  const matchLocation = findMatchInTournament(tournament, matchId);
+  if (!matchLocation) {
     console.error(`Match ${matchId} not found in tournament ${tournamentId}`);
     return false;
   }
 
+  const { categoryIndex, matchIndex } = matchLocation;
+  
   // Create a deep copy of the tournament
   const updatedTournament = JSON.parse(JSON.stringify(tournament));
 
   // Update the match
-  updatedTournament.matches[matchIndex] = {
-    ...updatedTournament.matches[matchIndex],
+  updatedTournament.categories[categoryIndex].matches[matchIndex] = {
+    ...updatedTournament.categories[categoryIndex].matches[matchIndex],
     ...matchUpdates,
   };
 
   // Log the update for debugging
-  console.log(`Direct match update:`, {
-    matchId,
-    before: tournament.matches[matchIndex],
-    after: updatedTournament.matches[matchIndex],
-  });
+  const category = tournament.categories[categoryIndex];
+  const matches = category.matches;
+  
+  if (matches && matches[matchIndex]) {
+    console.log(`Match update in category ${categoryIndex}:`, {
+      matchId,
+      before: matches[matchIndex],
+      after: updatedTournament.categories[categoryIndex].matches[matchIndex],
+    });
+  }
 
   // Update the tournament in the store
   updateTournament(updatedTournament);
-
-  // Force save to localStorage to ensure persistence
   saveTournamentsToLocalStorage();
+
+  // Also update in the database
+  try {
+    await updateTournamentInDB(updatedTournament);
+    console.log(`✅ Match ${matchId} updated in both local store and database`);
+  } catch (error) {
+    console.error(`❌ Failed to update match ${matchId} in database:`, error);
+    // Don't fail the entire operation if DB update fails
+    // The local update was successful
+  }
 
   return true;
 }
@@ -173,12 +270,24 @@ export function deleteMatchFromTournament(
     return false;
   }
 
-  const initialMatchesLength = tournament.matches.length;
-  tournament.matches = tournament.matches.filter(
-    (match) => match.id !== matchId
-  );
+  const matchLocation = findMatchInTournament(tournament, matchId);
+  if (!matchLocation) {
+    console.error(`Match ${matchId} not found in tournament ${tournamentId}`);
+    return false;
+  }
 
-  if (tournament.matches.length !== initialMatchesLength) {
+  const { categoryIndex, matchIndex } = matchLocation;
+  const category = tournament.categories[categoryIndex];
+  
+  if (!category.matches) {
+    console.error(`Category ${categoryIndex} has no matches`);
+    return false;
+  }
+
+  const initialMatchesLength = category.matches.length;
+  category.matches = category.matches.filter(match => match.id !== matchId);
+
+  if (category.matches.length !== initialMatchesLength) {
     updateTournament(tournament);
     saveTournamentsToLocalStorage();
     return true;
@@ -189,6 +298,7 @@ export function deleteMatchFromTournament(
 
 export function addMatchToTournament(
   tournamentId: string,
+  categoryId: string,
   newMatch: any
 ): boolean {
   const tournament = getTournamentById(tournamentId);
@@ -197,9 +307,22 @@ export function addMatchToTournament(
     return false;
   }
 
-  tournament.matches.push(newMatch);
+  const categoryIndex = findCategoryInTournament(tournament, categoryId);
+  if (categoryIndex === null) {
+    console.error(`Category ${categoryId} not found in tournament ${tournamentId}`);
+    return false;
+  }
+
+  const category = tournament.categories[categoryIndex];
+  if (!category.matches) {
+    category.matches = [];
+  }
+
+  category.matches.push(newMatch);
   updateTournament(tournament);
   saveTournamentsToLocalStorage();
+  
+  console.log(`Match added to category ${categoryId} in tournament ${tournamentId}`);
   return true;
 }
 
@@ -234,7 +357,7 @@ export async function saveTournamentsToDB(): Promise<void> {
 
     for (const t of tournamentsCopy) {
       if (t._id) {
-        await updateTournamentInDB(t.id, t); // PUT for existing
+        await updateTournamentInDB(t); // PUT for existing - only pass tournament object
       } else {
         await saveTournamentToDB(t); // POST for new
       }
@@ -302,6 +425,7 @@ export async function getTournamentByIdFromDB(
 }
 export async function addMatchToTournamentInDB(
   tournamentId: string,
+  categoryId: string,
   newMatch: any
 ): Promise<boolean> {
   try {
@@ -310,8 +434,17 @@ export async function addMatchToTournamentInDB(
     if (!res.ok) throw new Error(`Tournament ${tournamentId} not found`);
     const tournament = await res.json();
 
-    // 2️⃣ Add the new match
-    tournament.matches.push(newMatch);
+    // 2️⃣ Find the category and add the new match
+    const categoryIndex = tournament.categories.findIndex((cat: any) => cat.id === categoryId);
+    if (categoryIndex === -1) {
+      throw new Error(`Category ${categoryId} not found in tournament ${tournamentId}`);
+    }
+
+    if (!tournament.categories[categoryIndex].matches) {
+      tournament.categories[categoryIndex].matches = [];
+    }
+
+    tournament.categories[categoryIndex].matches.push(newMatch);
 
     // 3️⃣ Update this tournament in DB
     const updateRes = await fetch(`/api/tournaments/${tournamentId}`, {
@@ -323,7 +456,7 @@ export async function addMatchToTournamentInDB(
     if (!updateRes.ok)
       throw new Error("Failed to update tournament with new match");
 
-    console.log(`✅ Match added to tournament ${tournamentId}`);
+    console.log(`✅ Match added to category ${categoryId} in tournament ${tournamentId}`);
     return true;
   } catch (error) {
     console.error("❌ Failed to add match to tournament:", error);
@@ -340,14 +473,21 @@ export async function deleteMatchFromTournamentInDB(
     if (!res.ok) throw new Error(`Tournament ${tournamentId} not found`);
     const tournament = await res.json();
 
-    const initialMatchesLength = tournament.matches.length;
+    // 2️⃣ Find the match in categories and remove it
+    let matchFound = false;
+    for (const category of tournament.categories) {
+      if (category.matches) {
+        const initialMatchesLength = category.matches.length;
+        category.matches = category.matches.filter((match: any) => match.id !== matchId);
+        
+        if (category.matches.length !== initialMatchesLength) {
+          matchFound = true;
+          break;
+        }
+      }
+    }
 
-    // 2️⃣ Remove the match
-    tournament.matches = tournament.matches.filter(
-      (match: any) => match.id !== matchId
-    );
-
-    if (tournament.matches.length === initialMatchesLength) {
+    if (!matchFound) {
       console.warn(`Match ${matchId} not found in tournament ${tournamentId}`);
       return false;
     }
@@ -386,29 +526,37 @@ export async function updateMatchInTournamentInDB(
     if (!res.ok) throw new Error(`Tournament ${tournamentId} not found`);
     const tournament = await res.json();
 
-    const matchIndex = tournament.matches.findIndex(
-      (m: any) => m.id === matchId
-    );
-    if (matchIndex === -1) {
+    // 3️⃣ Find the match in categories and update it
+    let matchFound = false;
+    for (const category of tournament.categories) {
+      if (category.matches) {
+        const matchIndex = category.matches.findIndex((m: any) => m.id === matchId);
+        if (matchIndex !== -1) {
+          // Update the match
+          category.matches[matchIndex] = {
+            ...category.matches[matchIndex],
+            ...matchUpdates,
+          };
+          matchFound = true;
+          break;
+        }
+      }
+    }
+
+    if (!matchFound) {
       console.error(`Match ${matchId} not found in tournament ${tournamentId}`);
       return false;
     }
 
-    // 3️⃣ Create a deep copy and update the match
-    const updatedTournament = JSON.parse(JSON.stringify(tournament));
-    updatedTournament.matches[matchIndex] = {
-      ...updatedTournament.matches[matchIndex],
-      ...matchUpdates,
-    };
-
-    // 4️⃣ Send updated tournament back to MongoDB
+    // 4️⃣ Save updated tournament back to MongoDB
     const updateRes = await fetch(`/api/tournaments/${tournamentId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatedTournament),
+      body: JSON.stringify(tournament),
     });
 
-    if (!updateRes.ok) throw new Error("Failed to update match in MongoDB");
+    if (!updateRes.ok)
+      throw new Error("Failed to update tournament after updating match");
 
     console.log(`✅ Match ${matchId} updated in tournament ${tournamentId}`);
     return true;
@@ -421,13 +569,13 @@ export async function createTournamentInDB(
   tournament: Omit<Tournament, "id" | "createdAt">
 ): Promise<Tournament> {
   try {
-    const slug = createSlug(tournament.name);
-    const organizerId = localStorage.getItem("organizerId");
     const newTournament: Tournament = {
       ...tournament,
-      createdAt: Date.now(),
-      organizerId,
-      slug,
+      id: `tournament-${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 9)}`,
+      createdAt: getCurrentDateIST(), // Use IST timezone string
+      organizerId: tournament.organizerId || tournament.createdBy, // Ensure organizerId is set
     };
 
     const res = await fetch("/api/tournaments", {
@@ -437,12 +585,44 @@ export async function createTournamentInDB(
     });
 
     if (!res.ok) throw new Error("Failed to create tournament");
-    const savedTournament = await res.json();
+    const created = await res.json();
 
-    console.log(`✅ Tournament "${savedTournament.name}" created in MongoDB`);
-    return savedTournament;
+    console.log(`Tournament ${created.id} created in MongoDB`);
+    return created;
   } catch (error) {
-    console.error("❌ Failed to create tournament:", error);
+    console.error("Failed to create tournament in MongoDB:", error);
     throw error;
   }
+}
+
+// Function to refresh tournaments from database
+export async function refreshTournamentsFromDB(): Promise<void> {
+  try {
+    console.log("Refreshing tournaments from database...");
+    const response = await fetch('/api/tournaments');
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tournaments: ${response.status}`);
+    }
+    const dbTournaments = await response.json();
+    
+    // Update the local store
+    tournaments = dbTournaments;
+    
+    // Save to localStorage
+    saveTournamentsToLocalStorage();
+    
+    console.log(`Refreshed ${tournaments.length} tournaments from database`);
+  } catch (error) {
+    console.error("Failed to refresh tournaments from database:", error);
+  }
+}
+
+// Debug function to inspect tournament store state
+export function debugTournamentStore(): void {
+  console.log("=== Tournament Store Debug Info ===");
+  console.log("Total tournaments in store:", tournaments.length);
+  console.log("Tournament IDs:", tournaments.map(t => t.id));
+  console.log("Tournament names:", tournaments.map(t => t.name));
+  console.log("Store tournaments array:", tournaments);
+  console.log("=== End Debug Info ===");
 }
